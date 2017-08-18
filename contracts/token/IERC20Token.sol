@@ -2,7 +2,7 @@ pragma solidity ^0.4.10;
 
 /**@dev ERC20 compliant token interface. https://theethereum.wiki/w/index.php/ERC20_Token_Standard */
 contract IERC20Token {
-    function totalSupply() constant returns (uint totalSupply);
+    function totalSupply() constant returns (uint total);
     function balanceOf(address _owner) constant returns (uint balance);
     function transfer(address _to, uint _value) returns (bool success);
     function transferFrom(address _from, address _to, uint _value) returns (bool success);

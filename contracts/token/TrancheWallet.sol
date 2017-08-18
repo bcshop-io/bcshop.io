@@ -1,8 +1,9 @@
 pragma solidity ^0.4.10;
 
 import './LockableWallet.sol';
+import '../helpers/FakeTime.sol';
 
-contract TrancheWallet is LockableWallet {
+contract TrancheWallet is LockableWallet, FakeTime {
     address public beneficiary;         //funds are to withdraw to this account
     uint256 public tranchePeriodInDays; //one tranche 'cooldown' time
     uint256 public trancheAmountPct;    //one tranche amount 
@@ -33,6 +34,7 @@ contract TrancheWallet is LockableWallet {
         initialFunds = this.balance;
         lockStart = now;
         completeUnlockTime = lockPeriodInDays * 1 days + lockStart;
+        //completeUnlockTime = lockPeriodInDays * 1 minutes + lockStart;
     }
 
     /**@dev Sends available tranches to beneficiary account*/
@@ -42,6 +44,9 @@ contract TrancheWallet is LockableWallet {
         uint256 amountToWithdraw;
         uint256 tranchesToSend;
         (amountToWithdraw, tranchesToSend) = amountAvailableToWithdraw();
+
+        if(amountToWithdraw <= 0) throw;
+
         tranchesSent += tranchesToSend;
         beneficiary.transfer(amountToWithdraw);
 
@@ -57,14 +62,26 @@ contract TrancheWallet is LockableWallet {
                 tranches = 0;
             } else {
                 //withdraw tranche
-                uint256 monthsSinceLock = (now - lockStart) /  (3600 * 24 * tranchePeriodInDays);
-                tranches = monthsSinceLock - tranchesSent;
-                amount = tranches * trancheAmountPct * initialFunds / 100;                 
+                //uint256 monthsSinceLock = (now - lockStart) /  (3600 * 24 * tranchePeriodInDays);
+                uint256 periodsSinceLock = (now - lockStart) /  (tranchePeriodInDays * 1 days);
+                tranches = periodsSinceLock - tranchesSent + 1;                
+                amount = tranches * oneTrancheAmount();
+
+                //check if exceeding current limit
+                if(amount > this.balance) {
+                    amount = this.balance;
+                    tranches = amount / oneTrancheAmount();
+                }
             }
         } else {
             amount = 0;
             tranches = 0;
         }
+    }
+
+    /**@dev Returns the size of one tranche */
+    function oneTrancheAmount() constant returns(uint256) {
+        return trancheAmountPct * initialFunds / 100; 
     }
 
     /**@dev Allows to receive ether */

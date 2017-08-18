@@ -15,7 +15,7 @@ contract SafeMath {
     }
 
     /**dev Returns the difference of a and b. Throws an exception if a is less than b*/
-    function safeSub(uint256 a, uint56 b) internal returns (uint256) {
+    function safeSub(uint256 a, uint256 b) internal returns (uint256) {
         assert(a >= b);
         return a - b;
     }

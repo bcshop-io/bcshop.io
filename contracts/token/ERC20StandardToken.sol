@@ -19,8 +19,8 @@ contract ERC20StandardToken is IERC20Token {
     //
     //IERC20Token implementation
     // 
-    function totalSupply() constant returns (uint totalSupply) {
-        totalSupply = tokensIssued;
+    function totalSupply() constant returns (uint total) {
+        total = tokensIssued;
     }
  
     function balanceOf(address _owner) constant returns (uint balance) {

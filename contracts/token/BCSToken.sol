@@ -2,9 +2,10 @@ pragma solidity ^0.4.10;
 
 import '../common/Owned.sol';
 import './ERC20StandardToken.sol';
+import '../helpers/FakeTime.sol';
 
 /**@dev bcshop.io crowdsale token */
-contract BCSToken is ERC20StandardToken, Owned {
+contract BCSToken is ERC20StandardToken, Owned, FakeTime {
 
     string public constant name = 'BCSHOP TOKEN 1.0';
     string public constant symbol = '';
@@ -39,12 +40,11 @@ contract BCSToken is ERC20StandardToken, Owned {
         transferLockUntil[holder] = daysFromNow * 1 days + now;
     }
     
-    function burn(uint256 _value) returns (bool success) {
+    function burn(uint256 _value) {
         require (balances[msg.sender] >= _value);            // Check if the sender has enough
         balances[msg.sender] -= _value;                      // Subtract from the sender
         tokensIssued -= _value;                              // Updates totalSupply
-        Burn(msg.sender, _value);
-        return true;
+        Burn(msg.sender, _value);        
     }
 
 }
