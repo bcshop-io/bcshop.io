@@ -1,0 +1,31 @@
+pragma solidity ^0.4.10;
+
+import '../common/Owned.sol';
+
+///A token that have an owner and a list of managers that can perform some operations
+///Owner is always a manager too
+contract Manageable is Owned {
+
+    mapping (address => bool) public managers;
+
+    function Manageable() Owned() {
+        managers[owner] = true;
+    }
+
+    /**@dev Allows execution by managers only */
+    modifier managerOnly {
+        assert(managers[msg.sender]);
+        _;
+    }
+
+    function transferOwnership(address _newOwner) public ownerOnly {
+        super.transferOwnership(_newOwner);
+
+        managers[_newOwner] = true;
+        managers[msg.sender] = false;
+    }
+
+    function setManager(address manager, bool state) ownerOnly {
+        managers[manager] = state;
+    }
+}

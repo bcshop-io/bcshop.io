@@ -1,19 +1,20 @@
 pragma solidity ^0.4.10;
 
 import './TokenProduct.sol';
-import './Vendor.sol';
+import './NamedVendor.sol';
 import '../token/MintableToken.sol';
 
 ///Vendor that can sell only token products. Must be a token manager to operate correctly
-contract TokenVendor is Vendor {
+contract TokenVendor is NamedVendor {
 
     MintableToken public token;
 
-    function TokenVendor(address vendorWallet, address serviceProvider, uint256 feeInPromille) 
-        Vendor(vendorWallet, serviceProvider, feeInPromille) {
+    function TokenVendor(string vendorName, address vendorWallet, address serviceProvider, uint256 feeInPromille) 
+        NamedVendor(vendorName, vendorWallet, serviceProvider, feeInPromille) 
+    {
     }
 
-    function setToken(MintableToken tokenToSell) ownerOnly {
+    function setToken(MintableToken tokenToSell) managerOnly {
         token = tokenToSell;        
     }
 
@@ -28,14 +29,13 @@ contract TokenVendor is Vendor {
         uint256 purchaseEndTime
     )
         internal
-        ownerOnly
+        managerOnly
         returns (Product)
     {
-        require (address(token) != 0);
+        require (address(token) != 0x0);
 
         Product p = new TokenProduct(token, id, name, maxQuantity, purchaseStartTime, purchaseEndTime);
         token.setMinter(p, true);
         return p;
     }
-
 }

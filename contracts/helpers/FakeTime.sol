@@ -1,6 +1,7 @@
 pragma solidity ^0.4.10;
 
-/**@dev time simulating helper for testrpc environment */
+/**@dev time simulating helper for testrpc environment 
+uncomment for testing on testrpc */
 contract FakeTime {
     uint now;
 

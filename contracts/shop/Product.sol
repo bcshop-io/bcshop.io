@@ -1,12 +1,13 @@
 pragma solidity ^0.4.10;
 
 import './VendorBase.sol';
-import '../common/Owned.sol';
+import '../common/Manageable.sol';
+import '../common/ReentryProtected.sol';
 import '../helpers/FakeTime.sol';
 
 //Vendor's product for sale
 //TODO add return money function
-contract Product is Owned, FakeTime {
+contract Product is Manageable, ReentryProtected, FakeTime {
         
     ///Product id
     uint256 public id;
@@ -76,7 +77,7 @@ contract Product is Owned, FakeTime {
         endTime = purchaseEndTime;
     }
 
-    ///Total amount of purchase transactions
+    /**@dev Total amount of purchase transactions */
     function getTotalPurchases() constant returns (uint256) {
         return purchases.length;
     }
@@ -87,19 +88,20 @@ contract Product is Owned, FakeTime {
     }
 
     /**@dev Buy product. Send ether with this function in amount equal to desirable product quantity total price
-     * @param clientId Buyer's product-specific information. Contact product vendor for more information on what to specify here
-     */
-    function buy(string clientId) payable {
-
+     * clientId - Buyer's product-specific information. */
+    function buy(string clientId) 
+        preventReentry 
+        payable 
+    {
         //check for active
-        require(isActive); 
+        require(isActive);
+        //check maximum length
+        //require(bytes(clientId).length <= 255);
 
         //check time limit        
         require((startTime == 0 || now > startTime) && (endTime == 0 || now < endTime));
 
         VendorBase vendorInfo = VendorBase(owner);
-        //check for valid owner
-        require (vendorInfo.vendor() != 0); 
 
         var (unitsToBuy, etherToPay, etherToReturn) = calculatePaymentDetails();
 
@@ -121,13 +123,12 @@ contract Product is Owned, FakeTime {
         soldUnits += unitsToBuy;
         
         vendorInfo.provider().transfer(etherToProvider);
-        vendorInfo.vendor().transfer(etherToVendor);
+        /* Use 'call' here instead of transfer is intentional. That way we provide all the gas with call. 
+         If there is an error then the vendor just won't receive any ether and reimplement its fallback function */
+        require(vendorInfo.vendor().call.value(etherToVendor)());
         
         ProductBought(msg.sender, unitsToBuy, clientId);
     }
-
-    // event InfoEvent(uint256 amount, uint256 etherToReturn, uint256 etherToPay, uint256 etherToProvider, 
-    // uint256 etherToVendor, address vendorInfo, uint256 unitsToBuy, string clientId);
 
     /**@dev Call this to return all previous overpays */
     function withdrawOverpay() {
@@ -137,6 +138,8 @@ contract Product is Owned, FakeTime {
         msg.sender.transfer(amount);
     } 
 
+    /**@dev Calculates and returns payment details: how many units are bought, 
+     what part of ether should be paid and what part should be returned to buyer  */
     function calculatePaymentDetails() 
         internal 
         returns(uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 

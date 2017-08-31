@@ -10,13 +10,13 @@ contract TokenProduct is Product {
     uint8 constant public BRONZE_REWARD = 1;
     uint8 constant public SILVER_REWARD = 10;
     uint8 constant public GOLD_REWARD = 100;
-    uint8 constant public SILVER_REWARD_CHANCE = 5;
-    uint8 constant public GOLD_REWARD_CHANCE = 10;
+    uint8 constant public SILVER_REWARD_CHANCE = 3;
+    uint8 constant public GOLD_REWARD_CHANCE = 5;
 
     /**@dev List of buyers to prevent multiple purchases */
     mapping (address => uint256) public buyers;
 
-    /**@dev A token to sell. Token holder must transfer tokens to this contract via ERC20.transfer */
+    /**@dev A token to sell. */
     MintableToken public token;
     
     function TokenProduct(

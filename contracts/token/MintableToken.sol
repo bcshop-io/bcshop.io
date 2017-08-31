@@ -1,10 +1,11 @@
 pragma solidity ^0.4.10;
 
-import './ManageableToken.sol';
+import '../common/Manageable.sol';
 import '../common/Owned.sol';
+import './ERC20StandardToken.sol';
 
 ///Token that can be minted after creation
-contract MintableToken is ManageableToken {
+contract MintableToken is Manageable, ERC20StandardToken {
 
     /** List of minters */
     mapping(address => bool) public minters;
@@ -25,7 +26,7 @@ contract MintableToken is ManageableToken {
     }
 
     /**@dev Creates given amount of tokens*/
-    function mint(address beneficiary, uint256 amount) minterOnly {    
+    function mint(address beneficiary, uint256 amount) minterOnly {
         balances[beneficiary] += amount;
         tokensIssued += amount;
     }

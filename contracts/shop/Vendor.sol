@@ -6,15 +6,14 @@ import './VendorBase.sol';
 ///Vendor-provider agreement with the ability to create products
 contract Vendor is VendorBase {
 
-    //for functions that only vendor can call
-    //modifier onlyVendor {require(msg.sender == vendor); _;}
+    event ProductCreated(address product, string name, uint256 price);
 
-    event ProductCreated(address product, string name);
-    
+    /**@dev List of all created products */
     Product[] public products;
 
     function Vendor(address vendorWallet, address serviceProvider, uint256 feeInPromille) {
-        require(vendorWallet != 0x0 && serviceProvider != 0x0);
+        require(vendorWallet != 0x0);        
+        require(serviceProvider != 0x0);
 
         vendor = vendorWallet;
         provider = serviceProvider;
@@ -31,16 +30,24 @@ contract Vendor is VendorBase {
         uint256 purchaseStartTime,
         uint256 purchaseEndTime
     )
-        ownerOnly
+        managerOnly
         returns (address) 
     {
+        //check maximum length
+        //require(bytes(name).length <= 255);
+
         uint256 id = products.length;
         Product product = createProductObject(id, name, unitPriceInWei, isLimited, maxQuantity, allowFractions, purchaseStartTime, purchaseEndTime);
         products.push(product);
-
-        ProductCreated(product, name);
+        
+        ProductCreated(product, name, unitPriceInWei);
 
         return products[id];
+    }
+
+    /**@dev Returns count of products */
+    function getProductsCount() constant returns (uint256) {
+        return products.length;
     }
 
     function createProductObject(
@@ -54,7 +61,7 @@ contract Vendor is VendorBase {
         uint256 purchaseEndTime
     )
         internal
-        ownerOnly
+        managerOnly
         returns (Product)
     {
         return new Product(id, name, unitPriceInWei, isLimited, maxQuantity, allowFractions, purchaseStartTime, purchaseEndTime);
