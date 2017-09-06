@@ -23,6 +23,8 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
     function ParticipantInvestRestrictions(uint256 _floor, uint32 _maxTotalInvestors, uint32 _reservedInvestors)
         FloorInvestRestrictions(_floor)
     {
+        require(_maxTotalInvestors >= _reservedInvestors);
+        
         maxReservedInvestors = _reservedInvestors;
         maxInvestors = _maxTotalInvestors - _reservedInvestors;
     }

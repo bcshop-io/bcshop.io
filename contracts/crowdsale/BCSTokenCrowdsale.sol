@@ -31,7 +31,11 @@ contract BCSTokenCrowdsale is ReturnTokenAgent, BCSCrowdsale {
         require(getState() == State.Active);
         
         //adjust amount according to decimals
-        tokenPool.token().transfer(from, amountReturned * (10 ** tokenPool.token().decimals()) / (10 ** returnableToken.decimals())); 
+        //msg.sender is returnable tokens itself
+        ReturnableToken rToken = ReturnableToken(msg.sender);
+
+        //accept returnable tokens 1:1
+        tokenPool.token().transfer(from, amountReturned * (10 ** tokenPool.token().decimals()) / (10 ** rToken.decimals())); 
     }
 
     /**@dev Returns unclaimed tokens after the end of crowdsale back to owner */

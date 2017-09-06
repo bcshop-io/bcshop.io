@@ -19,10 +19,11 @@ contract BCSToken is ValueToken, FakeTime {
         name = "BCSHOP TOKEN 1.0";
         symbol = "";
         decimals = _decimals;
+        transferLocked = false;
 
         tokensIssued = _initialSupply * (10 ** decimals);
         //store all tokens at the owner's address;
-        balances[msg.sender] = tokensIssued;        
+        balances[msg.sender] = tokensIssued;       
     }
 
     /**@dev ERC20StandatdToken override */
@@ -33,7 +34,7 @@ contract BCSToken is ValueToken, FakeTime {
 
     /**@dev Returns true if given address can transfer tokens */
     function canTransfer(address holder) constant returns (bool) {
-        return !transferLocked && now > transferLockUntil[holder];
+        return !transferLocked && now > transferLockUntil[holder];        
     }    
 
     /**@dev Lock transfer for a given holder for a givan amount of days */

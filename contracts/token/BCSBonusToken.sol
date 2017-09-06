@@ -6,10 +6,10 @@ import './ReturnableToken.sol';
 ///A token to distribute during pre-pre-tge stage
 contract BCSBonusToken is ReturnableToken, MintableToken {
     
-    function BCSBonusToken() {
-        name = "BCSHOP BONUS TOKEN 1.0";
-        symbol = "";
-        decimals = 0; 
+    function BCSBonusToken(string _name, string _symbol, uint256 _decimals) {
+        name = _name;
+        symbol = _symbol;
+        decimals =_decimals; 
     }
 
 }

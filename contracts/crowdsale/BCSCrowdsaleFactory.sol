@@ -8,7 +8,7 @@ import '../token/ITokenPool.sol';
 import './ParticipantInvestRestrictions.sol';
 
 contract BCSCrowdsaleFactory {
-    
+
     address public controller;
 
     IInvestRestrictions angelSaleRestrictions;

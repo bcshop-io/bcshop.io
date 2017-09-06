@@ -1,7 +1,7 @@
 pragma solidity ^0.4.10;
 
-import './VendorBase.sol';
 import '../common/Manageable.sol';
+import './VendorBase.sol';
 import '../common/ReentryProtected.sol';
 import '../helpers/FakeTime.sol';
 
@@ -171,37 +171,26 @@ contract Product is Manageable, ReentryProtected, FakeTime {
         purchases[purchaseId].delivered = true;
     }
 
-    /**@dev Sets new product name */
-    function setName(string newName) vendorOnly {
+    /**@dev Changes parameters of product */
+    function setParams(
+        string newName, 
+        uint256 newPrice, 
+        bool newIsLimited, 
+        uint256 newMaxUnits,
+        bool newAllowFractions,
+        uint256 newStartTime,
+        uint256 newEndTime,
+        bool newIsActive
+    ) 
+        vendorOnly
+    {
         name = newName;
-    }
-
-    /**@dev Sets new price for product */
-    function setPrice(uint256 newPrice) vendorOnly {
         price = newPrice;
-    }
-
-    /**@dev Sets new limitation parameters */
-    function setLimitation(bool newIsLimited, uint256 newMaxQuantity) vendorOnly {
         isLimited = newIsLimited;
-        maxUnits = newMaxQuantity;
-    }
-
-    /**@dev Sets ability to sell product by fractions */
-    function setFractional(bool newAllowFractions) vendorOnly {
+        maxUnits = newMaxUnits;
         allowFractions = newAllowFractions;
-    }
-
-    /**@dev Sets new active state */
-    function setActive(bool newIsActive) vendorOnly {
         isActive = newIsActive;
-    }
-
-    function setStartTime(uint256 newStartTime) vendorOnly {
         startTime = newStartTime;
-    }
-
-    function setEndTime(uint256 newEndTime) vendorOnly {
         endTime = newEndTime;
     }
 }

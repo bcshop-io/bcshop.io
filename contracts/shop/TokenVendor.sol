@@ -9,9 +9,27 @@ contract TokenVendor is NamedVendor {
 
     MintableToken public token;
 
-    function TokenVendor(string vendorName, address vendorWallet, address serviceProvider, uint256 feeInPromille) 
-        NamedVendor(vendorName, vendorWallet, serviceProvider, feeInPromille) 
+    uint8 public bronzeRewardTokens;
+    uint8 public silverRewardTokens;
+    uint8 public goldRewardTokens;
+    uint8 public silverRewardDistance; //each x-th investor gets silver reward
+    uint8 public goldRewardDistance; //each x-th investor gets gold reward
+
+    function TokenVendor(
+        string vendorName, 
+        address vendorWallet,        
+        uint8 bronzeReward,
+        uint8 silverReward,
+        uint8 goldReward,
+        uint8 silverDistance,
+        uint8 goldDistance) 
+        NamedVendor(vendorName, vendorWallet, vendorWallet, 0) 
     {
+        bronzeRewardTokens = bronzeReward;
+        silverRewardTokens = silverReward;
+        goldRewardTokens = goldReward;
+        silverRewardDistance = silverDistance;
+        goldRewardDistance = goldDistance;
     }
 
     function setToken(MintableToken tokenToSell) managerOnly {
@@ -34,7 +52,19 @@ contract TokenVendor is NamedVendor {
     {
         require (address(token) != 0x0);
 
-        Product p = new TokenProduct(token, id, name, maxQuantity, purchaseStartTime, purchaseEndTime);
+        Product p = new TokenProduct(
+            token, 
+            id, 
+            name, 
+            maxQuantity, 
+            purchaseStartTime, 
+            purchaseEndTime,
+            bronzeRewardTokens,
+            silverRewardTokens,
+            goldRewardTokens,
+            silverRewardDistance,
+            goldRewardDistance);
+
         token.setMinter(p, true);
         return p;
     }

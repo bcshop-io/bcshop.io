@@ -13,7 +13,7 @@ contract BCSCrowdsaleController is Manageable {
 
     uint256 constant TOKEN_CAP = 10000000; // token cap, according to whitepaper   
     uint256 constant TOKEN_DEV_RESERVE_PCT = 20; //reserved to dev team, according to whitepaper
-    uint256 constant TOKEN_MISC_RESERVE_PCT = 2; //reserved to advisors etc., according to whitepaper
+    uint256 constant TOKEN_MISC_RESERVE_PCT = 5; //reserved to advisors etc., according to whitepaper
     uint256 constant TOKEN_PRETGE_SALE_PCT = 12; //we are selling this % during pretge   
     uint256 constant TGE_TOKENS_FOR_ONE_ETHER = 100;    
     uint256 constant DEV_TOKENS_LOCKED_DAYS = 365;
@@ -65,13 +65,13 @@ contract BCSCrowdsaleController is Manageable {
     }
 
     /**@dev Step 1.2. Reserve some tokens for bancor protocol */
-    function reserveForBancor(address reserveAddress, uint256 reservePct) {
+    function reserveForBancor(address reserveAddress, uint256 reservePct) managerOnly {
         token.setReserved(reserveAddress, true);
         token.transfer(reserveAddress, token.totalSupply() * reservePct / 100);
     }
 
     /**@dev Step 2.1. Approves angel sale to sell tokens from pre-tge pool */
-    function setAngelSale(address angelSale) {
+    function setAngelSale(address angelSale) managerOnly {
         preTgePool.setTrustee(angelSale, true);
     }
 
