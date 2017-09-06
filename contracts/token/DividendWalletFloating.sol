@@ -8,9 +8,6 @@ https://github.com/o0ragman0o/Bakt/blob/master/contracts/Bakt.sol
 https://medium.com/@weka/dividend-bearing-tokens-on-ethereum-42d01c710657
 */
 
-//TODO Forbidden addresses - addresses whose tokens aren't taken into account when dividends are paid
-//Also they can't withdraw funds from this wallet
-
 /**@dev Can distribute all stored ether among floating supply token holders. */
 contract DividendWalletFloating is DividendWallet {
 
@@ -49,22 +46,5 @@ contract DividendWalletFloating is DividendWallet {
     /**@dev DividendWallet override */
     function claimableEther(address holder) internal constant returns (uint256) {
         return (totalDividendPoints() - lastClaimed[holder]) * valueToken.balanceOf(holder) / MULTIPLIER; 
-    }
-
-    /**@dev DividendWallet override */
-    // function doWithdraw(address holder, uint amount) 
-    //     internal 
-    //     preventReentry
-    // {
-    //     updateHolder(holder);
-        
-    //     // check balance and withdraw on valid amount
-    //     require(amount <= etherBalance[holder]);
-    //     etherBalance[holder] = safeSub(etherBalance[holder], amount);
-
-    //     lastBalance = safeSub(lastBalance, amount);
-        
-    //     Withdraw(holder, amount);
-    //     holder.transfer(amount);    
-    // }
+    }    
 }

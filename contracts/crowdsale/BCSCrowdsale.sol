@@ -7,8 +7,7 @@ import '../common/SafeMath.sol';
 import '../helpers/FakeTime.sol';
 import '../crowdsale/IInvestRestrictions.sol';
 
-/**@dev Crowdsale base contract, used for PRE-TGE and TGE stages  
-* Token holder allocates specified amount of tokens for sale via ERC20.approve 
+/**@dev Crowdsale base contract, used for PRE-TGE and TGE stages
 * Token holder should also be the owner of this contract */
 contract BCSCrowdsale is Manageable, SafeMath, FakeTime {
 
@@ -122,7 +121,7 @@ contract BCSCrowdsale is Manageable, SafeMath, FakeTime {
             tokens = maxTokens;
         }
 
-        excess = weiAmount - tokens * 1 ether / realAmountForOneEther;//(weiAmount * realAmountForOneEther) % (1 ether);
+        excess = weiAmount - tokens * 1 ether / realAmountForOneEther;
 
         tokens = (tokens * 100 + tokens * bpct) / 100;
     }

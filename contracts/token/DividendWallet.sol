@@ -12,9 +12,6 @@ https://github.com/o0ragman0o/Bakt/blob/master/contracts/Bakt.sol
 https://medium.com/@weka/dividend-bearing-tokens-on-ethereum-42d01c710657
 */
 
-//TODO Forbidden addresses - addresses whose tokens aren't taken into account when dividends are paid
-//Also they can't withdraw funds from this wallet
-
 /**@dev Can distribute all stored ether among token holders */
 contract DividendWallet is ValueTokenAgent, IDividendWallet, SafeMath, ReentryProtected {
 
