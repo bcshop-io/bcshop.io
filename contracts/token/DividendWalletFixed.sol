@@ -3,7 +3,6 @@ pragma solidity ^0.4.10;
 import './DividendWallet.sol';
 
 /* Based on 
-https://github.com/o0ragman0o/PayableERC20/blob/master/contracts/PayableERC20.sol
 https://medium.com/@weka/dividend-bearing-tokens-on-ethereum-42d01c710657
 */
 

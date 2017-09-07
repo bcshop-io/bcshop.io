@@ -7,8 +7,6 @@ import '../common/SafeMath.sol';
 import '../common/ReentryProtected.sol';
 
 /* Based on 
-https://github.com/o0ragman0o/PayableERC20/blob/master/contracts/PayableERC20.sol
-https://github.com/o0ragman0o/Bakt/blob/master/contracts/Bakt.sol
 https://medium.com/@weka/dividend-bearing-tokens-on-ethereum-42d01c710657
 */
 
