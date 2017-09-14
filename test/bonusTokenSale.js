@@ -44,6 +44,7 @@ function Prepare(accounts) {
         investor8 = accounts[9];
         
         token = await Token.new("BCSBONUS TOKEN", "BB", 0);
+        //await token.setLockedState(true);
         vendor = await Vendor.new("V1", beneficiary, 1, 10, 100, 3, 5);
         await token.setManager(vendor.address, true);
         await vendor.setToken(token.address);
@@ -66,7 +67,7 @@ contract("BCSBonusToken, TokenVendor, TokenProduct. No time limits", function(ac
     })
 
     it("create offer 2", async function() {
-        await vendor.createProduct("S1", 0, true, 12, false, 0, 0);
+        await vendor.createProduct("S2", 0, true, 12, false, 0, 0);
         sale2 = Product.at(await vendor.products.call(1));
         assert.equal(await sale2.token.call(), token.address, "Invalid token");
         assert.equal(await sale2.maxUnits.call(), 12, "Invalid max units");
@@ -78,12 +79,12 @@ contract("BCSBonusToken, TokenVendor, TokenProduct. No time limits", function(ac
 
         var oldbBalance = await web3.eth.getBalance(beneficiary);
                 
-        await sale1.buy("p1", {from: investor1, value: 1 * multiplier});
-        await sale1.buy("p2", {from: investor2, value: 1 * multiplier});
-        await sale1.buy("p3", {from: investor3, value: 1 * multiplier});
-        await sale1.buy("p4", {from: investor4, value: 2 * multiplier});
-        await sale1.buy("p5", {from: investor5, value: 2 * multiplier});
-        await sale1.buy("p6", {from: investor6, value: 2 * multiplier});
+        await sale1.buy("p1", false, 0, {from: investor1, value: 1 * multiplier});
+        await sale1.buy("p2", false, 0, {from: investor2, value: 1 * multiplier});
+        await sale1.buy("p3", false, 0, {from: investor3, value: 1 * multiplier});
+        await sale1.buy("p4", false, 0, {from: investor4, value: 2 * multiplier});
+        await sale1.buy("p5", false, 0, {from: investor5, value: 2 * multiplier});
+        await sale1.buy("p6", false, 0, {from: investor6, value: 2 * multiplier});
         
         var bBalance = await web3.eth.getBalance(beneficiary);        
         
@@ -101,28 +102,35 @@ contract("BCSBonusToken, TokenVendor, TokenProduct. No time limits", function(ac
         assert.equal(await sale1.getTotalPurchases.call(), 6, "Should be 6 purchases");
     })
 
+    it("transfer tokens", async function() {
+        await token.transfer(investor4, 1, {from: investor3});
+        assert.equal(await token.balanceOf.call(investor4), 2, "Investor4 shouild have 2 tokens");
+    })
+
     it("investor bought earlier", async function() {
         //try to make another purchase from investor1, should fail
         try {
-            await sale1.buy("f1", {from: investor1, value: 2 * multiplier});
+            await sale1.buy("f1", false, 0, {from: investor1, value: 2 * multiplier});
         } catch (e) {            
             return true;
         }
         throw new Error("Should never get here");
     })
 
-    it("buy last no more tokens", async function() {        
-        await sale1.buy("p7", {from: investor7, value: 1 * multiplier});
-        assert.equal(await sale1.getTotalPurchases.call(), 7, "Should be 7 purchases");
+    it("buy last, no more tokens", async function() {        
+        await sale1.buy("p7", false, 0, {from: investor7, value: 1 * multiplier});
+        var purchases = (await sale1.getTotalPurchases.call()).toNumber();
+        assert.equal(purchases, 7, "Should be 7 purchases");
+        assert.equal(purchases, (await sale1.maxUnits.call()).toNumber(), "Should be sold max units");
     })
 
-    it("no more tokens", async function() {
+    it("buy when no more tokens", async function() {
         try {
-            await sale1.buy("f1", {from: investor8, value: 1 * multiplier});
+            await sale1.buy("f1", false, 0, {from: investor8, value: 1 * multiplier});
         } catch (e) {            
             return true;
         }
-        throw new Error("Should never get here");
+        throw new Error("Should never get here");        
     })
 })
 
@@ -144,7 +152,7 @@ contract("BCSBonusToken, TokenVendor, TokenProduct. Time limits", function(accou
 
     it("buy too early", async function() {
         try {
-            await sale1.buy("f1", {from: investor1, value: 1 * multiplier});
+            await sale1.buy("f1", false, 0, {from: investor1, value: 1 * multiplier});
         } catch (e) {            
             return true;
         }
@@ -153,14 +161,14 @@ contract("BCSBonusToken, TokenVendor, TokenProduct. Time limits", function(accou
 
     it("advance time to the start and buy", async function() {
         await utils.timeTravelAndMine(301);
-        await sale1.buy("p1", {from: investor1, value: 1 * multiplier});
+        await sale1.buy("p1", false, 0,  {from: investor1, value: 1 * multiplier});
         assert.equal(await sale1.getTotalPurchases.call(), 1, "Should be 1 purchases");            
     })
 
     it("advane time to the end and try to buy", async function() {
         await utils.timeTravelAndMine(601);
         try {
-            await sale1.buy("f1", {from: investor2, value: 1 * multiplier});
+            await sale1.buy("f1", false, 0,  {from: investor2, value: 1 * multiplier});
         } catch (e) {            
             return true;
         }

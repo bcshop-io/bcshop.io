@@ -120,8 +120,18 @@ contract("BCSTgeSale, BCSToken, BCSPreTgeToken, BCSBonusToken", function(account
         await token.transfer(pool.address, await _TB(token, owner));
         await pool.setTrustee(sale.address, true);
 
-        assert.equal(await btoken.returnAgents.call(sale.address), true , "Crowdsale should be bonus token's return agent");
+        assert.equal(await btoken.returnAgents.call(sale.address), true , "Crowdsale should be bonus token's return agent");        
     })
+
+    it("lock token's transfer", async function() {
+        await token.setLockedState(true);
+        assert.isFalse(await token.canTransfer(pool.address), "Pool shouldn't be able to transfer tokens");        
+        
+        await token.allowTransferFor(pool.address, true);
+        assert.isTrue(await token.canTransfer(pool.address), "Pool should be able to transfer tokens");
+
+        await token.allowTransferFor(sale.address, true);
+    })    
 
     it("buy with bonus tokens", async function() {
         
@@ -163,8 +173,15 @@ contract("BCSTgeSale, BCSToken, BCSPreTgeToken, BCSBonusToken", function(account
         assert.equal(await _TB(token, investor2), await _RT(token, 1000 + 150), "Investor2 should get 1150 tokens");
     })
 
+    it("lower bonus to next", async function() {
+        await utils.timeTravelAndMine(3600 + 10);
+        
+        var curBonus = (await sale.getCurrentBonusPct.call()).toNumber();        
+        assert.equal(curBonus, 10, "Current bonus should be 10%");
+    })
+
     it("lower bonus to zero", async function() {
-        await utils.timeTravelAndMine(3600 * 3 + 10);
+        await utils.timeTravelAndMine(3600 * 2 + 10);
 
         var curBonus = (await sale.getCurrentBonusPct.call()).toNumber();        
         assert.equal(curBonus, 0, "Current bonus should be 0%");
