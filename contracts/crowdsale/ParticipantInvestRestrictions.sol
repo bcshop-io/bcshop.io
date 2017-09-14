@@ -30,10 +30,10 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
     }
 
     /**@dev IInvestRestrictions override */
-    function canInvest(address investor, uint amount) constant returns (bool) {
+    function canInvest(address investor, uint amount) constant returns (bool result) {
         //First check ancestor's restriction. 
         //Allow only if it is reserved investor or it invested earlier or there is still room for new investors
-        return super.canInvest(investor, amount) && 
+        result = super.canInvest(investor, amount) && 
                     (reservedInvestors[investor] || 
                     investors[investor] || 
                     investorsCount < maxInvestors);

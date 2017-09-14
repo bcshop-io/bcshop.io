@@ -1,9 +1,8 @@
 pragma solidity ^0.4.10;
 
 import './LockableWallet.sol';
-import '../helpers/FakeTime.sol';
 
-contract TrancheWallet is LockableWallet, FakeTime {
+contract TrancheWallet is LockableWallet {
     address public beneficiary;         //funds are to withdraw to this account
     uint256 public tranchePeriodInDays; //one tranche 'cooldown' time
     uint256 public trancheAmountPct;    //one tranche amount 

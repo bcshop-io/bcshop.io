@@ -2,7 +2,6 @@ pragma solidity ^0.4.10;
 
 import './Product.sol';
 import '../token/MintableToken.sol';
-import '../helpers/FakeTime.sol';
 
 /// Product that contains a token to distribute or sell
 contract TokenProduct is Product {
@@ -42,15 +41,16 @@ contract TokenProduct is Product {
         goldRewardDistance = goldDistance;
     }
 
-    function calculatePaymentDetails() 
-        internal 
+    /**@dev Product override */
+    function calculatePaymentDetails(uint256 weiAmount, bool acceptLessUnits)         
         returns(uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
     {
         etherToReturn = 0;
-        etherToPay = msg.value;
-        unitsToBuy = 1;
+        etherToPay = weiAmount;        
+        unitsToBuy = soldUnits < maxUnits ? 1 : 0;
     }
 
+    /**@dev Product override */
     function createPurchase(string clientId, uint256 paidUnits) 
         internal 
     {
@@ -68,6 +68,6 @@ contract TokenProduct is Product {
         tokenAmount = token.getRealTokenAmount(tokenAmount); //considering decimals
 
         token.mint(msg.sender, tokenAmount);
-        buyers[msg.sender] += tokenAmount;
+        buyers[msg.sender] = safeAdd(buyers[msg.sender], tokenAmount);
     }
 }

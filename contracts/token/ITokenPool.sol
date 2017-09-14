@@ -11,6 +11,7 @@ contract ITokenPool {
     /**@dev Changes trustee state */
     function setTrustee(address trustee, bool state);
 
+    // these functions aren't abstract since the compiler emits automatically generated getter functions as external
     /**@dev Returns remaining token amount */
-    function getTokenAmount() constant returns (uint256);
+    function getTokenAmount() constant returns (uint256 tokens) {tokens;}
 }

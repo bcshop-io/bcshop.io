@@ -2,14 +2,15 @@ pragma solidity ^0.4.10;
 
 import '../common/Manageable.sol';
 import './ValueToken.sol';
-import '../helpers/FakeTime.sol';
 
 /**@dev bcshop.io crowdsale token */
-contract BCSToken is ValueToken, FakeTime {
-     
-    /**@dev Specifies timestamp when specific token holder can transfer funds */
+contract BCSToken is ValueToken {
+
+    /**@dev Specifies allowed address that always can transfer tokens in case of global transfer lock */
+    mapping (address => bool) public transferAllowed;
+    /**@dev Specifies timestamp when specific token holder can transfer funds */    
     mapping (address => uint256) public transferLockUntil; 
-    /**@dev True if transfer is locked for all holders, false otherwise  */
+    /**@dev True if transfer is locked for all holders, false otherwise */
     bool public transferLocked;
 
     event Burn(address sender, uint256 value);
@@ -23,7 +24,7 @@ contract BCSToken is ValueToken, FakeTime {
 
         tokensIssued = _initialSupply * (10 ** decimals);
         //store all tokens at the owner's address;
-        balances[msg.sender] = tokensIssued;       
+        balances[msg.sender] = tokensIssued;
     }
 
     /**@dev ERC20StandatdToken override */
@@ -34,12 +35,22 @@ contract BCSToken is ValueToken, FakeTime {
 
     /**@dev Returns true if given address can transfer tokens */
     function canTransfer(address holder) constant returns (bool) {
-        return !transferLocked && now > transferLockUntil[holder];        
+        if(transferLocked) {
+            return transferAllowed[holder];
+        } else {
+            return now > transferLockUntil[holder];
+        }
+        //return !transferLocked && now > transferLockUntil[holder];
     }    
 
-    /**@dev Lock transfer for a given holder for a givan amount of days */
+    /**@dev Lock transfer for a given holder for a given amount of days */
     function lockTransferFor(address holder, uint256 daysFromNow) managerOnly {
         transferLockUntil[holder] = daysFromNow * 1 days + now;
+    }
+
+    /**@dev Sets transfer allowance for specific holder */
+    function allowTransferFor(address holder, bool state) managerOnly {
+        transferAllowed[holder] = state;
     }
 
     /**@dev Locks or allows transfer for all holders, for emergency reasons*/

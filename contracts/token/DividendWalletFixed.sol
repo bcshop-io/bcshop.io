@@ -27,9 +27,9 @@ contract DividendWalletFixed is DividendWallet {
     }
     
     /**@dev DividendWallet override */
-    function claimableEther(address holder) internal constant returns (uint256) {
+    function claimableEther(address holder) internal constant returns (uint256 eth) {
         // shortly that means [tokens * (deposits() - lastSumDeposits) / totalTokens]
-        return safeDiv(
+        eth = safeDiv(
                 safeMult(
                     valueToken.balanceOf(holder), 
                     safeSub(deposits(), lastSumDeposits[holder])), 

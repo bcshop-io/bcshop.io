@@ -4,12 +4,11 @@ import '../token/ITokenPool.sol';
 import '../token/ReturnTokenAgent.sol';
 import '../common/Manageable.sol';
 import '../common/SafeMath.sol';
-import '../helpers/FakeTime.sol';
 import '../crowdsale/IInvestRestrictions.sol';
 
 /**@dev Crowdsale base contract, used for PRE-TGE and TGE stages
 * Token holder should also be the owner of this contract */
-contract BCSCrowdsale is Manageable, SafeMath, FakeTime {
+contract BCSCrowdsale is Manageable, SafeMath {
 
     enum State {Unknown, BeforeStart, Active, FinishedSuccess, FinishedFailure}
     
@@ -21,6 +20,7 @@ contract BCSCrowdsale is Manageable, SafeMath, FakeTime {
     uint256 public minimumGoalInWei; //TODO or in tokens
     uint256 public tokensForOneEther; //how many tokens can you buy for 1 ether   
     uint256 bonusPct;   //additional percent of tokens    
+    bool public withdrew; //true if beneficiary already withdrew
 
     uint256 public weiCollected;
     uint256 public tokensSold;
@@ -73,6 +73,7 @@ contract BCSCrowdsale is Manageable, SafeMath, FakeTime {
         weiCollected = 0;
         tokensSold = 0;
         failure = false;
+        withdrew = false;
     }
 
     function() payable {
@@ -135,6 +136,11 @@ contract BCSCrowdsale is Manageable, SafeMath, FakeTime {
         return tokenPool.getTokenAmount();
     }
 
+    /**@dev Returns funds that should be sent to beneficiary */
+    function amountToBeneficiary() constant returns (uint256) {
+        return weiCollected;
+    } 
+
     /**@dev Returns crowdsale current state */
     function getState() constant returns (State) {
         if (failure) {
@@ -150,23 +156,22 @@ contract BCSCrowdsale is Manageable, SafeMath, FakeTime {
         } else {
             return State.FinishedFailure;
         }
-    } 
+    }
 
     /**@dev Allows investors to withdraw funds and overpays in case of crowdsale failure */
     function refund() {
         require(getState() == State.FinishedFailure);
 
-        uint amount = investedFrom[msg.sender];
-        investedFrom[msg.sender] = 0;        
+        uint amount = investedFrom[msg.sender];        
 
         if (amount > 0) {
-            if (msg.sender.send(amount)) {
-                Refund(msg.sender, amount);
-            } else {
-                investedFrom[msg.sender] = amount; //restore funds in case of failed send
-            }
+            investedFrom[msg.sender] = 0;
+            weiCollected = safeSub(weiCollected, amount);            
+            msg.sender.transfer(amount);
+            
+            Refund(msg.sender, amount);            
         }
-    }
+    }    
 
     /**@dev Allows investor to withdraw overpay */
     function withdrawOverpay() {
@@ -183,27 +188,33 @@ contract BCSCrowdsale is Manageable, SafeMath, FakeTime {
     }
 
     /**@dev Transfers all collected funds to beneficiary*/
-    function transferToBeneficiary() returns (bool) {
-        require(getState() == State.FinishedSuccess);
-
+    function transferToBeneficiary() {
+        require(getState() == State.FinishedSuccess && !withdrew);
+        
+        withdrew = true;
         uint256 amount = amountToBeneficiary();
-        if (beneficiary.send(amount)) {
-            Refund(beneficiary, amount);
-            return true;
-        } else {
-            failure = true; 
-            return false;
-        }
+
+        beneficiary.transfer(amount);
+        Refund(beneficiary, amount);
+
+        // if (beneficiary.send(amount)) {
+        //     Refund(beneficiary, amount);
+        //     return true;
+        // } else {
+        //     withdrew = false;
+        //     failure = true; 
+        //     return false;
+        // }
     }
 
-    /**@dev Makes crowdsale failed, for emergency reasons */
-    function makeFailed() managerOnly {
-        failure = true;
+    /**@dev Makes crowdsale failed/ok, for emergency reasons */
+    function makeFailed(bool state) managerOnly {
+        failure = state;
     }
 
-    /**@dev Returns funds that should be sent to beneficiary */
-    function amountToBeneficiary() constant returns (uint256) {
-        return weiCollected;
+    /**@dev Sets new beneficiary */
+    function changeBeneficiary(address newBeneficiary) managerOnly {
+        beneficiary = newBeneficiary;
     }
 
     /***********************************************************************************************

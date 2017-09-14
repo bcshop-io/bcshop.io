@@ -52,35 +52,23 @@ contract DividendWallet is ValueTokenAgent, IDividendWallet, SafeMath, ReentryPr
         require(!valueToken.reserved(msg.sender));
         return doWithdraw(msg.sender, etherBalanceOf(msg.sender));
     }
-
-    /**@dev Withdraw an amount of the sender's ether balance */
-    function withdraw(uint amount) returns (bool) {
-        require(!valueToken.reserved(msg.sender));
-        return doWithdraw(msg.sender, amount);
-    }
-    
-    /**@dev Withdraw on behalf of a balance holder */
-    function withdrawFor(address holder, uint amount) returns (bool) {
-        require(!valueToken.reserved(holder));
-        return doWithdraw(holder, amount);
-    }
     
     /**@dev Account specific ethereum balance getter */
-    function etherBalanceOf(address holder) constant returns (uint) {
-        return safeAdd(etherBalance[holder], claimableEther(holder));
+    function etherBalanceOf(address holder) constant returns (uint balance) {
+        balance = safeAdd(etherBalance[holder], claimableEther(holder));
     }    
 
     /** @dev Updates holder state before transfer tokens or ether withdrawal */
     function updateHolder(address holder) internal;
 
     /**@dev Returns amount of ether that specified holder can withdraw  */
-    function claimableEther(address holder) internal constant returns (uint256);
+    function claimableEther(address holder) internal constant returns (uint256 eth) {holder; eth;}
 
     /**@dev Account withdrawl function */
     //function doWithdraw(address holder, uint amount) internal returns (bool);
     function doWithdraw(address holder, uint amount) 
         internal 
-        preventReentry
+        // preventReentry
         returns (bool success)
     {
         updateHolder(holder);

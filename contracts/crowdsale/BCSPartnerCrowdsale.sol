@@ -9,7 +9,10 @@ contract BCSPartnerCrowdsale is BCSCrowdsale {
     uint16 public partnerPromille;
     
     /**@dev Partner that can receive a part of collected funds */
-    address public partner;    
+    address public partner;
+
+    /**@dev True if partner already withdrew */
+    bool public partnerWithdrew;    
 
     function BCSPartnerCrowdsale(        
         ITokenPool _tokenPool,
@@ -33,7 +36,8 @@ contract BCSPartnerCrowdsale is BCSCrowdsale {
         _bonusPct) {
 
         partner = _partner;
-        partnerPromille = _partnerPromille;        
+        partnerPromille = _partnerPromille;   
+        partnerWithdrew = false;     
     }
 
      /**@dev BCSCrowdsale override */
@@ -52,10 +56,12 @@ contract BCSPartnerCrowdsale is BCSCrowdsale {
 
     /**@dev Transfers all collected funds to beneficiary*/
     function transferToPartner() {
-        require(getState() == State.FinishedSuccess);
+        require(getState() == State.FinishedSuccess && !partnerWithdrew);
 
+        partnerWithdrew = true;
         uint256 amount = amountToPartner();
         partner.transfer(amount);
+        
         Refund(partner, amount);        
     }
 }

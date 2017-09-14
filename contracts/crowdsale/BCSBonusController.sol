@@ -15,8 +15,8 @@ contract BCSBonusController is Manageable {
     }
 
     function createTokenAndVendor() managerOnly {
-        tokenVendor = new TokenVendor("BONUS", beneficiary, beneficiary, 0);
-        bonusToken = new BCSBonusToken();
+        tokenVendor = new TokenVendor("BONUS", beneficiary, 1, 10, 100, 10, 100);
+        bonusToken = new BCSBonusToken("BCS BONUS TOKEN", "", 0);
 
         bonusToken.setManager(tokenVendor, true);
         tokenVendor.setToken(bonusToken);

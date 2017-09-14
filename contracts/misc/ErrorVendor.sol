@@ -35,5 +35,5 @@ contract ReenterAttackVendor {
         Buyable s = Buyable(msg.sender);
         s.buy.value(0)("ERROR!");
     }
-
 }
+

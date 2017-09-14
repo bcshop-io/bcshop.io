@@ -4,12 +4,10 @@ pragma solidity ^0.4.10;
 contract IDividendWallet {
     function() payable;
 
-     /**@dev Withdraw an amount of the sender's ether balance */
-    function withdraw(uint _value) returns (bool);
-
-    /**@dev Withdraw on behalf of a balance holder */
-    function withdrawFor(address _addr, uint _value) returns (bool);
+    /**@dev Withdraws all sender's ether balance */
+    function withdrawAll() returns (bool);     
 
     /**@dev Account specific ethereum balance getter */
-    function etherBalanceOf(address _addr) constant returns (uint);
+    // these functions aren't abstract since the compiler emits automatically generated getter functions as external
+    function etherBalanceOf(address _addr) constant returns (uint balance) {_addr; balance;}
 }

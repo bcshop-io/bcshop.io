@@ -3,11 +3,11 @@ pragma solidity ^0.4.10;
 import '../common/Manageable.sol';
 import './VendorBase.sol';
 import '../common/ReentryProtected.sol';
-import '../helpers/FakeTime.sol';
+import '../common/SafeMath.sol';
 
 //Vendor's product for sale
 //TODO add return money function
-contract Product is Manageable, ReentryProtected, FakeTime {
+contract Product is Manageable, ReentryProtected, SafeMath {
         
     ///Product id
     uint256 public id;
@@ -88,44 +88,47 @@ contract Product is Manageable, ReentryProtected, FakeTime {
     }
 
     /**@dev Buy product. Send ether with this function in amount equal to desirable product quantity total price
-     * clientId - Buyer's product-specific information. */
-    function buy(string clientId) 
-        preventReentry 
+     * clientId - Buyer's product-specific information. 
+     * acceptLessUnits - 'true' if buyer doesn't care of buying the exact amount of limited products.
+     If N units left and buyer sends payment for N+1 units then settings this flag to 'true' will result in
+     buying N units, while 'false' will simply decline transaction 
+     * currentPrice - current product price as shown in 'price' property. 
+     Used for security reasons to compare actual price with the price at the moment of transaction. 
+     If they are not equal, transaction is declined  */
+    function buy(string clientId, bool acceptLessUnits, uint256 currentPrice) 
+    /* preventReentry */
         payable 
     {
-        //check for active
-        require(isActive);
-        //check maximum length
-        //require(bytes(clientId).length <= 255);
+        //check for active flag and valid price
+        require(isActive && currentPrice == price);        
 
         //check time limit        
-        require((startTime == 0 || now > startTime) && (endTime == 0 || now < endTime));
+        require((startTime == 0 || now > startTime) && (endTime == 0 || now < endTime));        
 
-        VendorBase vendorInfo = VendorBase(owner);
-
-        var (unitsToBuy, etherToPay, etherToReturn) = calculatePaymentDetails();
+        var (unitsToBuy, etherToPay, etherToReturn) = calculatePaymentDetails(msg.value, acceptLessUnits);
 
         //store overpay to withdraw later
         if (etherToReturn > 0) {
-            pendingWithdrawals[msg.sender] += etherToReturn;
+            pendingWithdrawals[msg.sender] = safeAdd(pendingWithdrawals[msg.sender], etherToReturn);
         }
 
-        //check if there is something to buy
-        require(!isLimited || soldUnits + unitsToBuy <= maxUnits);
+        //check if there is enough units to buy
         require(unitsToBuy > 0 && etherToPay > 0);        
 
         //how much to send to both provider and vendor
-        uint256 etherToProvider = etherToPay * vendorInfo.providerFeePromille() / 1000;
-        uint256 etherToVendor = etherToPay - etherToProvider;
+        VendorBase vendorInfo = VendorBase(owner);
+        uint256 etherToProvider = safeMult(etherToPay, vendorInfo.providerFeePromille()) / 1000;
+        uint256 etherToVendor = safeSub(etherToPay, etherToProvider);
      
         createPurchase(clientId, unitsToBuy);
 
-        soldUnits += unitsToBuy;
+        soldUnits = safeAdd(soldUnits, unitsToBuy);
         
         vendorInfo.provider().transfer(etherToProvider);
         /* Use 'call' here instead of transfer is intentional. That way we provide all the gas with call. 
          If there is an error then the vendor just won't receive any ether and reimplement its fallback function */
-        require(vendorInfo.vendor().call.value(etherToVendor)());
+        //assert(vendorInfo.vendor().call.value(etherToVendor)());
+        vendorInfo.vendor().transfer(etherToVendor);
         
         ProductBought(msg.sender, unitsToBuy, clientId);
     }
@@ -135,18 +138,28 @@ contract Product is Manageable, ReentryProtected, FakeTime {
         uint amount = pendingWithdrawals[msg.sender];        
         pendingWithdrawals[msg.sender] = 0;
 
-        msg.sender.transfer(amount);
+        if (!msg.sender.send(amount)) {
+            pendingWithdrawals[msg.sender] = amount;
+        }
     } 
 
     /**@dev Calculates and returns payment details: how many units are bought, 
      what part of ether should be paid and what part should be returned to buyer  */
-    function calculatePaymentDetails() 
-        internal 
+    function calculatePaymentDetails(uint256 weiAmount, bool acceptLessUnits)         
         returns(uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
     {
-        unitsToBuy = msg.value / price;                                
-        etherToReturn = msg.value - unitsToBuy * price;
-        etherToPay = msg.value - etherToReturn;
+        unitsToBuy = safeDiv(weiAmount, price);
+        //if product is limited and it's not enough to buy, check acceptLessUnits flag
+        if (isLimited && safeAdd(soldUnits, unitsToBuy) > maxUnits) {
+            if (acceptLessUnits) {
+                unitsToBuy = safeSub(maxUnits, soldUnits);
+            } else {
+                unitsToBuy = 0; //set to 0 so it will fail in buy() function later
+            }
+        }
+        
+        etherToReturn = safeSub(weiAmount, safeMult(unitsToBuy, price));
+        etherToPay = safeSub(weiAmount, etherToReturn);
     }
 
     /**@dev Creates new Purchase record */

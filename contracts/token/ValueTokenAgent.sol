@@ -3,7 +3,7 @@ pragma solidity ^0.4.10;
 import '../common/Manageable.sol';
 
 /**@dev Watches transfer operation of tokens to validate value-distribution state */
-contract ValueTokenAgent is Manageable {
+contract ValueTokenAgent {
     /**@dev Called just before the token balance update*/   
     function tokenIsBeingTransferred(address from, address to, uint256 amount);
 

@@ -20,8 +20,8 @@ contract TokenPool is Manageable, ITokenPool {
     }
 
     /**@dev ITokenPool override */
-    function getTokenAmount() constant returns (uint256) {
-        return token.balanceOf(this);
+    function getTokenAmount() constant returns (uint256 tokens) {
+        tokens = token.balanceOf(this);
     }
 
     /**@dev Returns all tokens back to owner */

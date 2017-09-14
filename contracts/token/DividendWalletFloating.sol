@@ -30,7 +30,7 @@ contract DividendWalletFloating is DividendWallet {
         if (lastBalance != this.balance) {
             dividendPoints = totalDividendPoints();
             lastBalance = this.balance;
-        }
+        }   
 
         //don't update balance for reserved tokens
         if (!valueToken.reserved(holder)) {
@@ -42,7 +42,7 @@ contract DividendWalletFloating is DividendWallet {
     }    
 
     /**@dev DividendWallet override */
-    function claimableEther(address holder) internal constant returns (uint256) {
-        return (totalDividendPoints() - lastClaimed[holder]) * valueToken.balanceOf(holder) / MULTIPLIER; 
+    function claimableEther(address holder) internal constant returns (uint256 eth) {
+        eth = (totalDividendPoints() - lastClaimed[holder]) * valueToken.balanceOf(holder) / MULTIPLIER; 
     }    
 }

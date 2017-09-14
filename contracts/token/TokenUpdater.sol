@@ -12,8 +12,8 @@ contract TokenUpdater is TokenHolder {
 
     mapping (address => uint256) public claimedTokens;
 
-    IERC20Token oldToken;
-    IERC20Token newToken;
+    IERC20Token public oldToken;
+    IERC20Token public newToken;
 
     function TokenUpdater(IERC20Token _oldToken, IERC20Token _newToken) {
         oldToken = _oldToken;
@@ -22,19 +22,15 @@ contract TokenUpdater is TokenHolder {
 
     /**@dev Transfers to sender the newToken in amount equal to its balance of oldToken (considering the decimals) */
     function getUpdatedToken() {
-        getUpdatedTokenFor(msg.sender);
-    }
-
-    /**@dev Transfers to holder the newToken in amount equal to its balance of oldToken (considering the decimals) */
-    function getUpdatedTokenFor(address holder) {
+        address holder = msg.sender;
         uint256 amount = oldToken.balanceOf(holder);
         require(claimedTokens[holder] < amount);
         
         amount = amount - claimedTokens[holder];
-
         claimedTokens[holder] += amount;
+
         amount = amount * (10 ** newToken.decimals()) / (10 ** oldToken.decimals());
         newToken.transfer(holder, amount);
-    }
 
+    }
 }
