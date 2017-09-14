@@ -22,7 +22,7 @@ contract BCSToken is ValueToken {
         decimals = _decimals;
         transferLocked = false;
 
-        tokensIssued = _initialSupply * (10 ** decimals);
+        tokensIssued = _initialSupply * (uint256(10) ** decimals);
         //store all tokens at the owner's address;
         balances[msg.sender] = tokensIssued;
     }

@@ -9,7 +9,7 @@ contract BCSPreTgeToken is ReturnableToken {
         uint256 _initialSupply, 
         string _name, 
         string _symbol, 
-        uint256 _decimals) 
+        uint8 _decimals) 
     {
         name = _name;
         symbol = _symbol;

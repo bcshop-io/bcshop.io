@@ -1,10 +1,12 @@
 pragma solidity ^0.4.10;
 
-/**@dev ERC20 compliant token interface. https://theethereum.wiki/w/index.php/ERC20_Token_Standard */
+/**@dev ERC20 compliant token interface. 
+https://theethereum.wiki/w/index.php/ERC20_Token_Standard 
+https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20-token-standard.md */
 contract IERC20Token {
     string public name;
     string public symbol;
-    uint256 public decimals;
+    uint8 public decimals;
 
     // these functions aren't abstract since the compiler emits automatically generated getter functions as external
     function totalSupply() constant returns (uint total) {total;}

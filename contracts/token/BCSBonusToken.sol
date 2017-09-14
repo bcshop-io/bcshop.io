@@ -9,10 +9,10 @@ contract BCSBonusToken is ReturnableToken, MintableToken {
     /**@dev True if transfer is locked for all holders, false otherwise  */
     bool public transferLocked;
 
-    function BCSBonusToken(string _name, string _symbol, uint256 _decimals) {
+    function BCSBonusToken(string _name, string _symbol, uint8 _decimals) {
         name = _name;
         symbol = _symbol;
-        decimals =_decimals; 
+        decimals = _decimals; 
         transferLocked = false;
     }    
 

@@ -25,5 +25,5 @@ contract ErrorPartner {
 //a contract that rejects any ether transfers to it
 contract EtherReject {
     function EtherReject() {}
-    function() payable {throw;}
+    function() payable {require(false);}
 }

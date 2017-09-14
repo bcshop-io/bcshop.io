@@ -70,9 +70,8 @@ function Prepare(accounts, _beneficiary) {
 }
 
 contract("BCSCrowdsale. Goal not reached", async function(accounts) {
-    it("create", async function() {
-        var etherReject = await EtherReject.new();
-        await Prepare(accounts, etherReject.address);
+    it("create", async function() {        
+        await Prepare(accounts, accounts[1]);
         
         StartTime = 0;
         DurationHours = 1;

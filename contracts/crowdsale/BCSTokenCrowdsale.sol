@@ -35,7 +35,7 @@ contract BCSTokenCrowdsale is ReturnTokenAgent, BCSCrowdsale {
         ReturnableToken rToken = ReturnableToken(msg.sender);
 
         //accept returnable tokens 1:1
-        tokenPool.token().transfer(from, amountReturned * (10 ** tokenPool.token().decimals()) / (10 ** rToken.decimals())); 
+        tokenPool.token().transfer(from, amountReturned * (uint256(10) ** tokenPool.token().decimals()) / (uint256(10) ** rToken.decimals())); 
     }
 
     /**@dev Returns unclaimed tokens after the end of crowdsale back to owner */

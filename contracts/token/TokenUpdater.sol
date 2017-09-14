@@ -29,7 +29,7 @@ contract TokenUpdater is TokenHolder {
         amount = amount - claimedTokens[holder];
         claimedTokens[holder] += amount;
 
-        amount = amount * (10 ** newToken.decimals()) / (10 ** oldToken.decimals());
+        amount = amount * (uint256(10) ** newToken.decimals()) / (uint256(10) ** oldToken.decimals());
         newToken.transfer(holder, amount);
 
     }
