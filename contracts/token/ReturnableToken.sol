@@ -11,14 +11,7 @@ contract ReturnableToken is Manageable, ERC20StandardToken {
     mapping (address => bool) public returnAgents;
 
     function ReturnableToken() {}    
-
-    function doTransfer(address _from, address _to, uint256 _value) internal {
-        super.doTransfer(_from, _to, _value);
-        if (returnAgents[_to]) {
-            ReturnTokenAgent(_to).returnToken(_from, _value);                
-        }
-    }
-
+    
     /**@dev Sets new return agent */
     function setReturnAgent(ReturnTokenAgent agent) managerOnly {
         returnAgents[address(agent)] = true;
@@ -27,5 +20,12 @@ contract ReturnableToken is Manageable, ERC20StandardToken {
     /**@dev Removes return agent from list */
     function removeReturnAgent(ReturnTokenAgent agent) managerOnly {
         returnAgents[address(agent)] = false;
+    }
+
+    function doTransfer(address _from, address _to, uint256 _value) internal {
+        super.doTransfer(_from, _to, _value);
+        if (returnAgents[_to]) {
+            ReturnTokenAgent(_to).returnToken(_from, _value);                
+        }
     }
 }

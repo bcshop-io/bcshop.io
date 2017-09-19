@@ -8,22 +8,83 @@ var vendor, product;
 
 var Fee = 100;
 var Price = 100;
-var owner, vendor, provider, user1, user2;
+var owner, vendorWallet, provider, user1, user2;
 
 function Prepare(accounts) {
     return new Promise(async (resolve, reject) => {
         
         owner = accounts[0];
-        vendor = accounts[1];
+        vendorWallet = accounts[1];
         provider = accounts[2];
         user1 = accounts[3];
         user2 = accounts[4];
 
-        vendor = await Vendor.new("V1", vendor, provider, Fee);
+        vendor = await Vendor.new("V1", vendorWallet, provider, Fee);
 
         return resolve(true);
     })    
 }
+
+contract("Product. Consecutive overpays", function(accounts) {
+    var vBalance1, vBalance2, pBalance1, pBalance2;
+
+    it("create product", async function() {
+        await Prepare(accounts);
+        vBalance1 = await web3.eth.getBalance(vendorWallet);
+        pBalance1 = await web3.eth.getBalance(provider);
+
+        await vendor.createProduct("POverpay", Price, false, 0, false, 0, 0);
+        product = Product.at(await vendor.products.call(0));
+        assert.isFalse(await product.isLimited.call(), "Product should be unlimited");
+    })
+
+    it("buy 1 with small overpay", async function() {
+        await product.buy("b1", false, Price, {from: user1, value: Price + 20});
+        assert.equal(await product.soldUnits.call(), 1, "Should have sold 1 unit");
+        assert.equal((await product.pendingWithdrawals.call(user1)).toNumber(), 20, "User1 should have overpay 20");
+    })
+
+    it("buy 2 with small overpay", async function() {
+        await product.buy("b2", false, Price, {from: user1, value: 2 * Price + 30});
+        var purchase = await product.getPurchase.call(1);
+
+        assert.equal(purchase[2].toNumber(), 2, "The latest purchase should be 2 units");
+        assert.equal((await product.soldUnits.call()).toNumber(), 3, "Should have sold 3 unit total");
+        assert.equal((await product.pendingWithdrawals.call(user1)).toNumber(), 50, "User1 should have overpay 50");
+    })
+
+    it("buy 1 with no overpay", async function() {
+        await product.buy("b3", false, Price, {from: user2, value: Price});
+        var purchase = await product.getPurchase.call(2);
+
+        assert.equal(purchase[2].toNumber(), 1, "The latest purchase should be 1 units");
+        assert.equal((await product.soldUnits.call()).toNumber(), 4, "Should have sold 3 unit total");
+        assert.equal((await product.pendingWithdrawals.call(user2)).toNumber(), 0, "User2 should have overpay 0");
+    })
+
+    it("withdraw overpay from non-overpayer", async function() {
+        var balance1 = await web3.eth.getBalance(product.address);
+        await product.withdrawOverpay({from: user2});
+        var balance2 = await web3.eth.getBalance(product.address);
+        assert.equal(balance1.minus(balance2).toNumber(), 0, "Product balance should not be changed");
+    })
+
+    it("withdraw overpay from overpayer", async function() {
+        var balance1 = await web3.eth.getBalance(product.address);
+        await product.withdrawOverpay({from: user1});
+        var balance2 = await web3.eth.getBalance(product.address);
+        assert.equal(balance1.minus(balance2).toNumber(), 50, "Product balance should be less by 50");
+    })
+
+    it("check vendor and provider balances", async function() {
+        vBalance2 = await web3.eth.getBalance(vendorWallet);
+        pBalance2 = await web3.eth.getBalance(provider);
+
+        assert.equal(vBalance2.minus(vBalance1).toNumber(), 360, "Vendor should get 360");
+        assert.equal(pBalance2.minus(pBalance1).toNumber(), 40, "Provider should get 40");
+    })
+
+})
 
 contract("Product. Overpays and limited supply.", function(accounts) {
     var Limit = 10;

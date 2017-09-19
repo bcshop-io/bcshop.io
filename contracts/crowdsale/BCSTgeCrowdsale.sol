@@ -6,7 +6,7 @@ import './BCSTokenCrowdsale.sol';
  Bonus starts with initialPct and decrease every [step] down to zero */
 contract BCSTgeCrowdsale is BCSTokenCrowdsale {
         
-    uint256 steps;
+    uint256 public steps;
 
     function BCSTgeCrowdsale(
         ITokenPool _tokenPool,

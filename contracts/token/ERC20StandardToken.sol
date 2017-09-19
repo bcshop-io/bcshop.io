@@ -41,7 +41,7 @@ contract ERC20StandardToken is IERC20Token, SafeMath {
     function transferFrom(address _from, address _to, uint256 _value) returns (bool) {
         require(_to != address(0));
         
-        // Check for allowance is not needed because sub(_allowance, _value) will already throw if this condition is not met
+        // Check for allowance is not needed because sub(_allowance, _value) will throw if this condition is not met
         allowed[_from][msg.sender] = safeSub(allowed[_from][msg.sender], _value);        
         // safeSub inside doTransfer will throw if there is not enough balance.
         doTransfer(_from, _to, _value);        

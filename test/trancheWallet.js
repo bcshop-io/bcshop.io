@@ -40,33 +40,33 @@ function Prepare(accounts) {
     })    
 }
 
-// contract("TrancheWallet. Test complete unlock period", async function(accounts) {
-//     it("create", async function() {
-//         await Prepare(accounts);
-//     })
+contract("TrancheWallet. Test complete unlock period", async function(accounts) {
+    it("create", async function() {
+        await Prepare(accounts);
+    })
 
-//     it("unlock period elapsed", async function() {
-//         await utils.timeTravelAndMine(FUNDS_COMPLETE_UNLOCK_DAYS * 86400 + 1);
-//         var result = await wallet.amountAvailableToWithdraw.call();
+    it("unlock period elapsed", async function() {
+        await utils.timeTravelAndMine(FUNDS_COMPLETE_UNLOCK_DAYS * 86400 + 1);
+        var result = await wallet.amountAvailableToWithdraw.call();
 
-//         assert.equal(result[1].toNumber(), 0, "Should return 0 tranches");
-//         assert.equal(result[0].toNumber(), WalletFunds, "Should return 1E as withdrawable funds");        
-//     })
+        assert.equal(result[1].toNumber(), 0, "Should return 0 tranches");
+        assert.equal(result[0].toNumber(), WalletFunds, "Should return 1E as withdrawable funds");        
+    })
 
-//     it("transfer to beneficiary", async function() {
-//         var oldBalance = await web3.eth.getBalance(beneficiary);
-//         await wallet.sendToBeneficiary();
-//         var newBalance = await web3.eth.getBalance(beneficiary);
-//         assert.equal(newBalance.minus(oldBalance).toNumber(), WalletFunds, "Should be get 1E");        
-//     })
+    it("transfer to beneficiary", async function() {
+        var oldBalance = await web3.eth.getBalance(beneficiary);
+        await wallet.sendToBeneficiary();
+        var newBalance = await web3.eth.getBalance(beneficiary);
+        assert.equal(newBalance.minus(oldBalance).toNumber(), WalletFunds, "Should be get 1E");        
+    })
 
-//     it("check withdrawable amount", async function() {
-//         var result = await wallet.amountAvailableToWithdraw.call();
+    it("check withdrawable amount", async function() {
+        var result = await wallet.amountAvailableToWithdraw.call();
 
-//         assert.equal(result[1], 0, "Should return 0 tranches");
-//         assert.equal(result[0], 0, "Should return 0E as withdrawable funds");        
-//     })
-// })
+        assert.equal(result[1], 0, "Should return 0 tranches");
+        assert.equal(result[0], 0, "Should return 0E as withdrawable funds");        
+    })
+})
 
 contract("TrancheWallet. Test tranches", async function(accounts) {
     var oneTranche;

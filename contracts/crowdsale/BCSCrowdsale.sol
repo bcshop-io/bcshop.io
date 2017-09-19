@@ -196,15 +196,6 @@ contract BCSCrowdsale is Manageable, SafeMath {
 
         beneficiary.transfer(amount);
         Refund(beneficiary, amount);
-
-        // if (beneficiary.send(amount)) {
-        //     Refund(beneficiary, amount);
-        //     return true;
-        // } else {
-        //     withdrew = false;
-        //     failure = true; 
-        //     return false;
-        // }
     }
 
     /**@dev Makes crowdsale failed/ok, for emergency reasons */

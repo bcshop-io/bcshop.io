@@ -1,9 +1,21 @@
 pragma solidity ^0.4.10;
 
 import '../common/Manageable.sol';
+import './ValueToken.sol';
 
 /**@dev Watches transfer operation of tokens to validate value-distribution state */
 contract ValueTokenAgent {
+
+    /**@dev Token whose transfers that contract watches */
+    ValueToken public valueToken;
+
+    /**@dev Allows only token to execute method */
+    modifier valueTokenOnly {require(msg.sender == address(valueToken)); _;}
+
+    function ValueTokenAgent(ValueToken token) {
+        valueToken = token;
+    }
+
     /**@dev Called just before the token balance update*/   
     function tokenIsBeingTransferred(address from, address to, uint256 amount);
 

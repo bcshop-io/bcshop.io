@@ -77,6 +77,9 @@ contract Product is Manageable, ReentryProtected, SafeMath {
         endTime = purchaseEndTime;
     }
 
+    /**@dev Allows to receive ether, for example from BonusTokenFund */
+    function() payable {}
+
     /**@dev Total amount of purchase transactions */
     function getTotalPurchases() constant returns (uint256) {
         return purchases.length;

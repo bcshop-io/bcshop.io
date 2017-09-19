@@ -2,9 +2,11 @@ pragma solidity ^0.4.10;
 
 import '../common/Manageable.sol';
 import './ValueToken.sol';
+import './ReturnableToken.sol';
+import './IBurnableToken.sol';
 
 /**@dev bcshop.io crowdsale token */
-contract BCSToken is ValueToken {
+contract BCSToken is ValueToken, ReturnableToken, IBurnableToken {
 
     /**@dev Specifies allowed address that always can transfer tokens in case of global transfer lock */
     mapping (address => bool) public transferAllowed;

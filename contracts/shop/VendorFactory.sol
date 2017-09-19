@@ -1,9 +1,10 @@
 pragma solidity ^0.4.10;
 
 import './NamedVendor.sol';
+import '../common/Manageable.sol';
 
 /// Utilities to create and manage vendors
-contract VendorFactory {
+contract VendorFactory is Manageable {
 
     event VendorCreated(address vendor, string name);
 
@@ -30,5 +31,11 @@ contract VendorFactory {
     /**@dev Returns a number of vendor contracts created by specific owner */
     function getVendorCount(address owner) constant returns (uint256) {
         return vendors[owner].length;
-    }    
+    }
+
+    /**@dev Changes default provider settings */
+    function setParams(address newProvider, uint256 newFeePromille) managerOnly {
+        provider = newProvider;
+        providerFeePromille = newFeePromille;
+    }
 }

@@ -13,23 +13,16 @@ https://medium.com/@weka/dividend-bearing-tokens-on-ethereum-42d01c710657
 /**@dev Can distribute all stored ether among token holders */
 contract DividendWallet is ValueTokenAgent, IDividendWallet, SafeMath, ReentryProtected {
 
-    event Withdraw(address receiver, uint256 amount);
-
-    /**@dev Token whose transfers that contract watches */
-    ValueToken public valueToken;
+    event Withdraw(address receiver, uint256 amount);    
     
     /**@dev Ether balance to withdraw */
     mapping (address => uint256) public etherBalance;
 
     /**@dev The contract balance at last claim (transfer or withdraw) */
     uint lastBalance;
-
-    /**@dev Allows only token to execute method */
-    modifier valueTokenOnly {require(msg.sender == address(valueToken)); _;}
-
+    
     /**@dev Sets token to watch transfer operations */
-    function DividendWallet(ValueToken token) {
-        valueToken = token;
+    function DividendWallet(ValueToken token) ValueTokenAgent(token) {    
     }
 
     function () payable {}
@@ -43,7 +36,7 @@ contract DividendWallet is ValueTokenAgent, IDividendWallet, SafeMath, ReentryPr
     }
 
     /**@dev ValueTokenAgent override */
-    function tokenChanged(address holder, uint256 amount) {
+    function tokenChanged(address holder, uint256 amount) valueTokenOnly {
         updateHolder(holder);
     }
 

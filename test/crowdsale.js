@@ -17,9 +17,9 @@ var sale;
 var Pool = artifacts.require("TokenPool");
 var pool;
 
-
+var EtherCharity = artifacts.require("EtherCharity");
 var EtherReject = artifacts.require("EtherReject");
-
+var injector;
 var OneEther = web3.toWei(1, "ether");
 var StartTime;
 var DurationHours;
@@ -69,7 +69,55 @@ function Prepare(accounts, _beneficiary) {
     })
 }
 
-contract("BCSCrowdsale. Goal not reached", async function(accounts) {
+contract("BCSCrowdsale. Inject ether via selfdestruct", function(accounts) {
+    it("create", async function() {
+        await Prepare(accounts, accounts[1]);
+        
+        StartTime = 0;
+        DurationHours = 1;
+        sale = await Crowdsale.new(pool.address, 0, beneficiary, StartTime, DurationHours, 0, TokensForOneEther, 0);        
+        await pool.setTrustee(sale.address, true);
+    })
+
+    it("invest", async function() {
+        var investment1 = OneEther;
+        await sale.invest({from: investor1, value: investment1});         
+        assert.equal(await _TB(investor1), await _RT(100), "Investor1 should get 100 tokens");
+    })
+
+    it("inject 1E", async function() {
+
+        var tokensLeft1 = await sale.tokensLeft.call();
+        var balance1 = await web3.eth.getBalance(sale.address);
+        injector = await EtherCharity.new();
+        await web3.eth.sendTransaction({from:owner, to:injector.address, value:OneEther});
+        await injector.donate(sale.address);
+        var balance2 = await web3.eth.getBalance(sale.address);
+        var tokensLeft2 = await sale.tokensLeft.call();
+
+        assert.equal(balance2.minus(balance1).toNumber(), OneEther, "Sale should get 1E");
+        assert.equal(tokensLeft2.minus(tokensLeft1).toNumber(), 0, "Sale should sell 0 tokens");
+    })
+    
+    it("advance time to the end and withdraw", async function() {
+        await utils.timeTravelAndMine(DurationHours * 86400);
+        assert.equal((await sale.getState.call()).toNumber(), 3, "State should be finished");
+
+        var oldbalance1 = await web3.eth.getBalance(beneficiary);
+        await sale.transferToBeneficiary();
+        var newbalance1 = await web3.eth.getBalance(beneficiary);
+
+        assert.equal(newbalance1.minus(oldbalance1).toNumber(), 1 * OneEther, "Beneficiary should get 1E");
+        assert.equal((await web3.eth.getBalance(sale.address)).toNumber(), OneEther, "Sale should have 1E from inject");
+    })    
+
+    it("check injector's state", async function() {
+        assert.equal(await sale.investedFrom.call(injector.address), 0, "Injector should have 0 invested");
+        assert.equal(await sale.overpays.call(injector.address), 0, "Injector should have 0 overpays");        
+    })
+})
+
+contract("BCSCrowdsale. Goal not reached", function(accounts) {
     it("create", async function() {        
         await Prepare(accounts, accounts[1]);
         
@@ -117,7 +165,7 @@ contract("BCSCrowdsale. Goal reached. Withdraw throws. Make failed. Investors wi
         assert.equal(await _TB(investor2), await _RT(300), "Investor2 should get 300 tokens");
     })
 
-    it("advane time to the end", async function() {
+    it("advance time to the end", async function() {
         await utils.timeTravelAndMine(DurationHours * 86400);
         assert.equal((await sale.getState.call()).toNumber(), 3, "State should be finished");
     })
@@ -204,3 +252,68 @@ contract("BCSCrowdsale. Withdraw throws. Change beneficiary", async function(acc
     })    
 })
 
+contract("BCSCrowdsale. Overpays", function(accounts) {
+    var tokensForEther = 1;
+    it("create", async function() {
+        await Prepare(accounts, accounts[1]);
+        
+        StartTime = 0;
+        DurationHours = 1;        
+        sale = await Crowdsale.new(pool.address, 0, beneficiary, StartTime, DurationHours, 0, tokensForEther, 0);
+        await pool.setTrustee(sale.address, true);
+    })
+
+    it("invest with overpay from investor1 and investor2", async function() {
+        var investment1 = OneEther*1.5;        
+        await sale.invest({from: investor1, value: investment1});         
+        assert.equal(await _TB(investor1), await _RT(1), "Investor1 should get 1 token");
+        assert.equal((await sale.overpays.call(investor1)).toNumber(), OneEther / 2, "Overpay should be 0.5E");    
+
+        await sale.invest({from: investor2, value: investment1});
+        assert.equal(await _TB(investor2), await _RT(1), "Investor2 should get 1 token");
+        assert.equal((await sale.overpays.call(investor2)).toNumber(), OneEther / 2, "Overpay should be 0.5E");
+
+        var investment2 = OneEther*2.5;        
+        await sale.invest({from: investor1, value: investment2});
+        assert.equal(await _TB(investor1), await _RT(3), "Investor1 should have 3 token");
+        assert.equal((await sale.overpays.call(investor1)).toNumber(), OneEther, "Overpay should be 1E");    
+    })
+
+    it("withdraw before sale end", async function() {
+        var b1 = await web3.eth.getBalance(sale.address);
+        var t1 = await sale.withdrawOverpay({from:investor2});
+        var t2 = await sale.withdrawOverpay({from:investor2});
+        var b2 = await web3.eth.getBalance(sale.address);
+
+        assert.equal(b1.minus(b2).toNumber(), OneEther / 2, "Sale balance should be less by 0.5E");
+        assert.equal(t1.logs[0].event, "OverpayRefund", "OverpayRefund event should be fired");
+        assert.equal(t2.logs.length, 0, "OverpayRefund event shouldn't be fired");
+    })
+
+    it("advance time to the end", async function() {
+        await utils.timeTravelAndMine(DurationHours * 86400);
+        assert.equal((await sale.getState.call()).toNumber(), 3, "State should be finished");
+    })
+
+    it("withdraw after sale end", async function() {
+        var b1 = await web3.eth.getBalance(sale.address);
+        var t1 = await sale.withdrawOverpay({from:investor1});
+        var t2 = await sale.withdrawOverpay({from:investor1});
+        var b2 = await web3.eth.getBalance(sale.address);
+
+        assert.equal(b1.minus(b2).toNumber(), OneEther, "Sale balance should be less by 1E");
+        assert.equal(t1.logs[0].event, "OverpayRefund", "OverpayRefund event should be fired");
+
+        assert.equal(await web3.eth.getBalance(sale.address), 4 * OneEther, "Sale should have 4E - invested amount");
+    })
+
+    it("transfer to beneficiary", async function() {
+        var i1 = await web3.eth.getBalance(beneficiary);
+        await sale.transferToBeneficiary();
+        var b1 = await web3.eth.getBalance(sale.address);
+        var i2 = await web3.eth.getBalance(beneficiary);
+
+        assert.equal(i2.minus(i1).toNumber(), 4 * OneEther, "Beneficiary shuold get 4E");
+        assert.equal(await web3.eth.getBalance(sale.address), 0, "Sale should have 0E");
+    })
+})
