@@ -7,7 +7,7 @@
 var Web3 = require("web3");
 var web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
 
-var Token = artifacts.require("BCSBonusToken");
+var Token = artifacts.require("BCSPromoToken");
 var token1, token2;
 
 var TokenUpdater = artifacts.require("TokenUpdater");

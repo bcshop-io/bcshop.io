@@ -7,7 +7,7 @@ var Web3 = require("web3");
 web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
 var utils = new (require("./timeutils.js"))(web3);
 
-var Token = artifacts.require("BCSBonusToken");
+var Token = artifacts.require("BCSPromoToken");
 var Vendor = artifacts.require("TokenVendor");
 var Product = artifacts.require("TokenProduct");
 
@@ -45,7 +45,7 @@ function Prepare(accounts) {
         
         token = await Token.new("BCSBONUS TOKEN", "BB", 0);
         //await token.setLockedState(true);
-        vendor = await Vendor.new("V1", beneficiary, 1, 10, 100, 3, 5);
+        vendor = await Vendor.new("", beneficiary, 1, 10, 100, 3, 5);
         await token.setManager(vendor.address, true);
         await vendor.setToken(token.address);
 
@@ -53,10 +53,10 @@ function Prepare(accounts) {
     })
 }
 
-contract("BCSBonusToken, TokenVendor, TokenProduct. No time limits", function(accounts) {
+contract("BCSPromoToken, TokenVendor, TokenProduct. No time limits", function(accounts) {
     it("create", async function() {
         await Prepare(accounts);
-        assert.equal(await vendor.name.call(), "V1", "Check name");
+        assert.equal(await vendor.name.call(), "", "Check name");
         assert.equal(await vendor.vendor.call(), beneficiary, "Check vendor wallet");        
     })
 
@@ -79,7 +79,7 @@ contract("BCSBonusToken, TokenVendor, TokenProduct. No time limits", function(ac
 
         var oldbBalance = await web3.eth.getBalance(beneficiary);
                 
-        await sale1.buy("p1", false, 0, {from: investor1, value: 1 * multiplier});
+        await sale1.buy("", false, 0, {from: investor1, value: 1 * multiplier});
         await sale1.buy("p2", false, 0, {from: investor2, value: 1 * multiplier});
         await sale1.buy("p3", false, 0, {from: investor3, value: 1 * multiplier});
         await sale1.buy("p4", false, 0, {from: investor4, value: 2 * multiplier});
@@ -134,7 +134,7 @@ contract("BCSBonusToken, TokenVendor, TokenProduct. No time limits", function(ac
     })
 })
 
-contract("BCSBonusToken, TokenVendor, TokenProduct. Time limits", function(accounts) {        
+contract("BCSPromoToken, TokenVendor, TokenProduct. Time limits", function(accounts) {        
     it("create", async function() {
         await Prepare(accounts);
         

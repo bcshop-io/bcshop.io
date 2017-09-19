@@ -11,7 +11,7 @@ var utils = new (require("./timeutils.js"))(web3);
 var PToken = artifacts.require("BCSPreTgeToken");
 var ptoken;
 
-var BToken = artifacts.require("BCSBonusToken");
+var BToken = artifacts.require("BCSPromoToken");
 var btoken;
 
 var Token = artifacts.require("BCSToken");
@@ -76,7 +76,7 @@ function Prepare(accounts) {
     })
 }
 
-contract("BCSTgeSale, BCSToken, BCSPreTgeToken, BCSBonusToken", function(accounts) {
+contract("BCSTgeSale, BCSToken, BCSPreTgeToken, BCSPromoToken", function(accounts) {
     it("prepare", async function() {
         await Prepare(accounts);
         return true;
