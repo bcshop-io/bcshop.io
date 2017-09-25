@@ -11,7 +11,7 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
     /**@dev Maximum number of reserved places for investors */
     uint32 public maxReservedInvestors;
 
-    /**@dev Current number of investors */
+    /**@dev Current number of unreserved investors */
     uint32 public investorsCount;
 
     /**@dev Current number of reserved investors */

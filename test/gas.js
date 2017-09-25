@@ -15,7 +15,7 @@ contract("Compare gas prices", function(accounts) {
     it("Creation of token vendor. Controller and standalone transactions.", async function() {
         var b1 = await web3.eth.getBalance(owner);
 
-        controller = await Controller.new(accounts[1]);
+        controller = await Controller.new(accounts[1]);        
         await controller.createTokenAndVendor();
 
         var b2 = await web3.eth.getBalance(owner);

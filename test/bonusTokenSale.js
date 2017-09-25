@@ -61,13 +61,15 @@ contract("BCSPromoToken, TokenVendor, TokenProduct. No time limits", function(ac
     })
 
     it("create offer 1", async function () {        
-        await vendor.createProduct("S1", 0, true, 7, false, 0, 0);
+        //await vendor.createProduct("S1", 0, true, 7, false, 0, 0);
+        await vendor.quickCreatePromo("S1", 7);
         sale1 = Product.at(await vendor.products.call(0));
         assert.equal(await sale1.token.call(), token.address, "Invalid token");
     })
 
     it("create offer 2", async function() {
-        await vendor.createProduct("S2", 0, true, 12, false, 0, 0);
+        //await vendor.createProduct("S2", 0, true, 12, false, 0, 0);
+        await vendor.quickCreatePromo("S2", 12);
         sale2 = Product.at(await vendor.products.call(1));
         assert.equal(await sale2.token.call(), token.address, "Invalid token");
         assert.equal(await sale2.maxUnits.call(), 12, "Invalid max units");
@@ -79,7 +81,7 @@ contract("BCSPromoToken, TokenVendor, TokenProduct. No time limits", function(ac
 
         var oldbBalance = await web3.eth.getBalance(beneficiary);
                 
-        await sale1.buy("", false, 0, {from: investor1, value: 1 * multiplier});
+        await sale1.buy("", false, 0, {from: investor1, value: 0});
         await sale1.buy("p2", false, 0, {from: investor2, value: 1 * multiplier});
         await sale1.buy("p3", false, 0, {from: investor3, value: 1 * multiplier});
         await sale1.buy("p4", false, 0, {from: investor4, value: 2 * multiplier});
@@ -96,7 +98,7 @@ contract("BCSPromoToken, TokenVendor, TokenProduct. No time limits", function(ac
         assert.equal(await token.balanceOf.call(investor6), 10, "Investor6 should have 10 token");
 
         var balanceChange = bBalance.minus(oldbBalance).toNumber();
-        assert.equal(balanceChange, 9 * multiplier, "Beneficiary should get 6");        
+        assert.equal(balanceChange, 8 * multiplier, "Beneficiary should get 8");        
         assert.equal(await web3.eth.getBalance(sale1.address), 0, "There should be no ether on product contract by now");
         assert.equal(await token.totalSupply.call(), 123, "Total tokens sold should be 113");
         assert.equal(await sale1.getTotalPurchases.call(), 6, "Should be 6 purchases");
@@ -146,6 +148,7 @@ contract("BCSPromoToken, TokenVendor, TokenProduct. Time limits", function(accou
         var endTime = startTime + 600; //lasts for 10 minutes
 
         await vendor.createProduct("S10", 0, true, 10, false, startTime, endTime);
+        
         sale1 = Product.at(await vendor.products.call(0));
         assert.equal(await sale1.token.call(), token.address, "Invalid token");        
     })

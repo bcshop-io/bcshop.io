@@ -30,7 +30,7 @@ contract Vendor is VendorBase {
         uint256 purchaseStartTime,
         uint256 purchaseEndTime
     )
-        managerOnly
+        ownerOnly
         returns (address) 
     {
         //check maximum length
@@ -43,6 +43,11 @@ contract Vendor is VendorBase {
         ProductCreated(product, name, unitPriceInWei);
 
         return products[id];
+    }
+
+    /**@dev Sets new wallet to collect profits from purchases */
+    function setVendorWallet(address newWallet) ownerOnly {
+        vendor = newWallet;
     }
 
     /**@dev Returns count of products */
@@ -61,7 +66,7 @@ contract Vendor is VendorBase {
         uint256 purchaseEndTime
     )
         internal
-        managerOnly
+        ownerOnly
         returns (Product)
     {
         return new Product(id, name, unitPriceInWei, isLimited, maxQuantity, allowFractions, purchaseStartTime, purchaseEndTime);

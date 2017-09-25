@@ -75,7 +75,7 @@ contract("BCSCrowdsale. Inject ether via selfdestruct", function(accounts) {
         
         StartTime = 0;
         DurationHours = 1;
-        sale = await Crowdsale.new(pool.address, 0, beneficiary, StartTime, DurationHours, 0, TokensForOneEther, 0);        
+        sale = await Crowdsale.new(pool.address, 0, beneficiary, StartTime, DurationHours, 0, TokensForOneEther, 0);                
         await pool.setTrustee(sale.address, true);
     })
 

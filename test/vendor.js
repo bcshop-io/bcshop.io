@@ -19,8 +19,7 @@ function Prepare(accounts) {
         user1 = accounts[3];
         user2 = accounts[4];
 
-        vendor = await Vendor.new("V1", vendorWallet, provider, Fee);
-
+        vendor = await Vendor.new("V1", vendorWallet, provider, Fee);        
         return resolve(true);
     })    
 }
@@ -30,6 +29,7 @@ contract("Product. Consecutive overpays", function(accounts) {
 
     it("create product", async function() {
         await Prepare(accounts);
+        
         vBalance1 = await web3.eth.getBalance(vendorWallet);
         pBalance1 = await web3.eth.getBalance(provider);
 
@@ -42,6 +42,25 @@ contract("Product. Consecutive overpays", function(accounts) {
         await product.buy("b1", false, Price, {from: user1, value: Price + 20});
         assert.equal(await product.soldUnits.call(), 1, "Should have sold 1 unit");
         assert.equal((await product.pendingWithdrawals.call(user1)).toNumber(), 20, "User1 should have overpay 20");
+    })
+
+    it("try buy sending 0", async function() {
+        try {
+            await product.buy("b1", false, Price, {from: user1, value: 0});
+        } catch (e) {
+            return true;
+        }
+        assert.isTrue(false, "Purchase should fail, sent 0E - not enough");
+    })
+
+    
+    it("try buy sending less than Price", async function() {
+        try {
+            await product.buy("b1", false, Price, {from: user1, value: Price - 10});
+        } catch (e) {
+            return true;
+        }
+        assert.isTrue(false, "Purchase should fail, amount sent is too low");
     })
 
     it("buy 2 with small overpay", async function() {
@@ -183,6 +202,7 @@ contract("Product. Change price.", function(accounts) {
     }) 
 })
 
+//now should be able to receive payments directly
 contract("Product. Direct ether send to Product.", function(accounts) {
     it("create product", async function() {
         await Prepare(accounts);
@@ -192,15 +212,7 @@ contract("Product. Direct ether send to Product.", function(accounts) {
     })
 
     it("try to send ether directly", async function() {
-        try {
-            await web3.eth.sendTransaction({from: user1, to:product.address, value: Price * 2});            
-        } catch (e) {
-            return true;
-        }
-        assert.isTrue(false, "Ether transfer should fail");
-    })
-
-    it("check purchases", async function() {
+        await web3.eth.sendTransaction({from: user1, to:product.address, value: Price * 2});
         assert.equal(await product.getTotalPurchases.call(), 0, "Should be 0 purchases");
     })
 })

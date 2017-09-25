@@ -31,8 +31,17 @@ contract TokenVendor is NamedVendor {
         silverRewardDistance = silverDistance;
         goldRewardDistance = goldDistance;
     }
+    
+    /**@dev creates promo action with given name and positions limit, with no time boundaries */
+    function quickCreatePromo(string name, uint256 maxPositions) 
+        ownerOnly 
+        returns (address) 
+    {
+        return createProduct(name, 0, true, maxPositions, false, 0, 0);
+    }
 
-    function setToken(MintableToken tokenToSell) managerOnly {
+    /**@dev Sets token to sell */
+    function setToken(MintableToken tokenToSell) ownerOnly {
         token = tokenToSell;        
     }
 
@@ -47,7 +56,7 @@ contract TokenVendor is NamedVendor {
         uint256 purchaseEndTime
     )
         internal
-        managerOnly
+        ownerOnly
         returns (Product)
     {
         require (address(token) != 0x0);

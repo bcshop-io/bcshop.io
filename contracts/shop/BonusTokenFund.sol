@@ -141,7 +141,7 @@ contract BonusTokenFund is IBonusTokenFund, ValueTokenAgent, ReturnTokenAgent, T
     /**@dev transfers ether in exchange for bonus tokens */
     function returnEther(address to, uint256 bonusTokensAmount) internal {        
         uint256 etherAmount = bonusTokensAmount / tokenEtherRate;
-        lastBalance = safeSub(lastBalance, etherAmount);
+        lastBalance = safeSub(this.balance, etherAmount);
         to.transfer(etherAmount);
     }
 }

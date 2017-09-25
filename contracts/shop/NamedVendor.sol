@@ -16,7 +16,8 @@ contract NamedVendor is Vendor {
         name = vendorName;
     }
 
-    function setName(string newName) managerOnly {
+    /**@dev Sets new name */
+    function setName(string newName) ownerOnly {
         name = newName;
     }
 

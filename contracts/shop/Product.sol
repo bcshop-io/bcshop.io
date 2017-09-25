@@ -116,12 +116,19 @@ contract Product is Manageable, ReentryProtected, SafeMath {
         }
 
         //check if there is enough units to buy
-        require(unitsToBuy > 0 && etherToPay > 0);        
+        require(unitsToBuy > 0);
 
         //how much to send to both provider and vendor
         VendorBase vendorInfo = VendorBase(owner);
-        uint256 etherToProvider = safeMult(etherToPay, vendorInfo.providerFeePromille()) / 1000;
-        uint256 etherToVendor = safeSub(etherToPay, etherToProvider);
+        uint256 etherToProvider;
+        uint256 etherToVendor;
+        if(etherToPay > 0) {
+            etherToProvider = safeMult(etherToPay, vendorInfo.providerFeePromille()) / 1000;        
+            etherToVendor = safeSub(etherToPay, etherToProvider);
+        } else {
+            etherToProvider = 0;
+            etherToVendor = 0;
+        }
      
         createPurchase(clientId, unitsToBuy);
 
