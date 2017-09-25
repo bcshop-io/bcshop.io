@@ -4,11 +4,12 @@ import '../token/ITokenPool.sol';
 import '../token/ReturnTokenAgent.sol';
 import '../common/Manageable.sol';
 import '../common/SafeMath.sol';
-import '../crowdsale/IInvestRestrictions.sol';
+import './IInvestRestrictions.sol';
+import './ICrowdsaleFormula.sol';
 
 /**@dev Crowdsale base contract, used for PRE-TGE and TGE stages
 * Token holder should also be the owner of this contract */
-contract BCSCrowdsale is Manageable, SafeMath {
+contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
 
     enum State {Unknown, BeforeStart, Active, FinishedSuccess, FinishedFailure}
     
@@ -81,8 +82,9 @@ contract BCSCrowdsale is Manageable, SafeMath {
     }
 
     function invest() payable {
-        require(getState() == State.Active);
-        require(address(restrictions) == 0x0 || restrictions.canInvest(msg.sender, msg.value));
+        require(canInvest(msg.sender, msg.value));
+        // require(getState() == State.Active);
+        // require(address(restrictions) == 0x0 || restrictions.canInvest(msg.sender, msg.value, tokensLeft()));
 
         uint256 excess;
         uint256 weiPaid = msg.value;
@@ -111,7 +113,14 @@ contract BCSCrowdsale is Manageable, SafeMath {
         Invested(msg.sender, weiPaid, tokensToBuy);
     }
 
-    /**@dev Returns how many tokens one can buy for given amount of wei */
+    /**@dev Returns true if it is possible to invest */
+    function canInvest(address investor, uint256 amount) constant returns(bool) {
+        return getState() == State.Active && 
+                tokensLeft() > 0 && 
+                restrictions.canInvest(investor, amount, tokensLeft());
+    }
+
+    /**@dev ICrowdsaleFormula override */
     function howManyTokensForEther(uint256 weiAmount) constant returns(uint256 tokens, uint256 excess) {
         uint256 realAmountForOneEther = tokenPool.token().getRealTokenAmount(tokensForOneEther);
         uint256 bpct = getCurrentBonusPct();
@@ -127,6 +136,7 @@ contract BCSCrowdsale is Manageable, SafeMath {
         tokens = (tokens * 100 + tokens * bpct) / 100;
     }
 
+    /**@dev Returns current bonus percent [0-100] */
     function getCurrentBonusPct() constant returns (uint256) {
         return bonusPct;
     }

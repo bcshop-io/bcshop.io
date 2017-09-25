@@ -17,10 +17,10 @@ contract FloorInvestRestrictions is IInvestRestrictions {
     }
 
     /** IInvestRestrictions implementation */
-    function canInvest(address investor, uint amount) constant returns (bool result) {
+    function canInvest(address investor, uint amount, uint tokensLeft) constant returns (bool result) {
         
         //allow investment if it isn't the first one 
-        if(investors[investor]) {
+        if (investors[investor]) {
             result = true;
         } else {
             //otherwise check the floor

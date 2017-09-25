@@ -22,8 +22,8 @@ contract BCSCrowdsaleFactory {
         controller = _controller;
     }
 
-    function createAngelRestrictions(uint256 floor, uint32 maxTotalInvestors, uint32 reservedInvestors) {
-        angelSaleRestrictions = new ParticipantInvestRestrictions(floor, maxTotalInvestors, reservedInvestors);
+    function createAngelRestrictions(uint256 floor, uint32 maxTotalInvestors) {
+        angelSaleRestrictions = new ParticipantInvestRestrictions(floor, maxTotalInvestors);
         angelSaleRestrictions.setManager(msg.sender, true);
     }
 
