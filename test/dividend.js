@@ -57,6 +57,7 @@ function Prepare(accounts) {
         investor4 = accounts[9];
 
         token = await Token.new(TokenCap, 18);    
+        await token.setLockedState(false);
         wallet = await Wallet.new(token.address);
         await token.setValueAgent(wallet.address);
 

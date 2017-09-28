@@ -58,6 +58,7 @@ function Prepare(accounts, _partner) {
         sale = await Crowdsale.new(pool.address, 0, beneficiary, StartTime, DurationHours, 0, TokensForOneEther, 10, partner, 200);
         await token.transfer(pool.address, await _RT(TokenCap));
         await pool.setTrustee(sale.address, true);
+        await token.allowTransferFor(pool.address, true);
 
         return resolve(true);
     })

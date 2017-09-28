@@ -162,13 +162,22 @@ contract("BCSPromoToken, TokenVendor, TokenProduct. Time limits", function(accou
         throw new Error("Should never get here");
     })
 
-    it("advance time to the start and buy", async function() {
+    it("advance time to the start and buy as investor1", async function() {
         await utils.timeTravelAndMine(301);
-        await sale1.buy("p1", false, 0,  {from: investor1, value: 1 * multiplier});
+        await sale1.buy("p1", false, 0,  {from: investor1, value: 0});
         assert.equal(await sale1.getTotalPurchases.call(), 1, "Should be 1 purchases");            
     })
 
-    it("advane time to the end and try to buy", async function() {
+    it("try to buy again as investor1, should fail", async function() {
+        try {
+            await sale1.buy("p2", false, 0,  {from: investor1, value: multiplier});
+        } catch (e) {
+            return true;
+        }
+        assert.isTrue(false, "Payment should fail");
+    })
+
+    it("advance time to the end and try to buy", async function() {
         await utils.timeTravelAndMine(601);
         try {
             await sale1.buy("f1", false, 0,  {from: investor2, value: 1 * multiplier});

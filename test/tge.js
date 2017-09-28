@@ -123,8 +123,7 @@ contract("BCSTgeSale, BCSToken, BCSPreTgeToken, BCSPromoToken", function(account
         assert.equal(await btoken.returnAgents.call(sale.address), true , "Crowdsale should be bonus token's return agent");        
     })
 
-    it("lock token's transfer", async function() {
-        await token.setLockedState(true);
+    it("lock token's transfer", async function() {        
         assert.isFalse(await token.canTransfer(pool.address), "Pool shouldn't be able to transfer tokens");        
         
         await token.allowTransferFor(pool.address, true);

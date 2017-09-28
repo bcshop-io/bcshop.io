@@ -26,6 +26,7 @@ contract("BCSToken", function(accounts) {
         user2 = accounts[2];
 
         token = await Token.new(TokenCap, 18);
+        await token.setLockedState(false);
         assert.equal(await _TB(owner), await _RT(1000), "Owner shoudl have all the tokens");
     })
 
@@ -83,6 +84,7 @@ contract("BCSToken. try to call internal methods", function(accounts) {
         user2 = accounts[2];
 
         token = await Token.new(TokenCap, 18);
+        await token.setLockedState(false);
         assert.equal(await _TB(owner), await _RT(1000), "Owner shoudl have all the tokens");
         villain = await ErrorTokenInternalTransfer.new();
     })

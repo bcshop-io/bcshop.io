@@ -63,10 +63,9 @@ function Prepare(accounts, _beneficiary) {
 }
 
 contract("BCSCrowdsale. Lock token transfer for everybody", function(accounts) {
-    it("create and lock transfer", async function() {
+    it("create, transfer locked", async function() {
         await Prepare(accounts, accounts[1]);
-
-        await token.setLockedState(true);
+        
         sale = await Crowdsale.new(pool.address, 0, beneficiary, 0, DurationHours, 0, TokensForOneEther, 0);
         
         totalTokens = (await token.totalSupply.call()).toNumber();        
@@ -74,20 +73,10 @@ contract("BCSCrowdsale. Lock token transfer for everybody", function(accounts) {
         await restrictions.setFormula(sale.address);
         
         assert.isTrue(await token.transferLocked.call(), "Locked state should be locked");
-        assert.isFalse(await token.canTransfer.call(owner), "Owner shouldn't be able to transfer tokens");
+        assert.isFalse(await token.canTransfer.call(investor1), "Owner shouldn't be able to transfer tokens");
     })
 
-    it("try to transfer tokens to pool, should fail", async function() {
-        try {
-            await token.transfer(pool.address, totalTokens);
-        } catch (e) {
-            return true;
-        }
-        assert.isTrue(false, "Transfer should fail");
-    })
-
-    it("allow transfer for owner and transfer to pool", async function() {
-        await token.allowTransferFor(owner, true);
+    it("allow transfer for owner and transfer to pool", async function() {        
         assert.isTrue(await token.transferLocked.call(), "Locked state should be locked");
         assert.isTrue(await token.canTransfer.call(owner), "Owner should be able to transfer tokens");                
 
@@ -114,5 +103,21 @@ contract("BCSCrowdsale. Lock token transfer for everybody", function(accounts) {
 
         await sale.invest({from: investor2, value: OneEther*2});
         assert.equal(await _TB(investor2), await _RT(200), "Investor2 should get 200 tokens");
+    })
+
+    it("try to transfer tokens from investor1 to investor3, should fail", async function() {
+        try {
+            await token.transfer(investor3, await _RT(1), {from:investor1});
+        } catch(e) {
+            return true;
+        }
+        assert.isTrue(false, "Token transfer should fail");
+    })
+
+    it("unlock global transfer and transfer again", async function() {
+        await token.setLockedState(false);
+        await token.transfer(investor3, await _RT(1), {from:investor1});
+        assert.equal(await _TB(investor1), await _RT(99), "Investor1 should have 99 tokens");
+        assert.equal(await _TB(investor3), await _RT(1), "Investor3 should have 1 tokens");
     })
 })

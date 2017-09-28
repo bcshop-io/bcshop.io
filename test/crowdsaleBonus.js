@@ -55,9 +55,9 @@ function Prepare(accounts) {
         totalTokens = (await token.totalSupply.call()).toNumber();        
         
         pool = await Pool.new(token.address);
-        assert.equal(await pool.token(), token.address, "Invalid pool token");
-        
+        assert.equal(await pool.token(), token.address, "Invalid pool token");        
         await token.transfer(pool.address, totalTokens);
+        await token.allowTransferFor(pool.address, true);
         var poolTokens = (await token.balanceOf.call(pool.address)).toNumber();
         assert.equal(poolTokens, totalTokens, "Invalid pool tokens amount");
 

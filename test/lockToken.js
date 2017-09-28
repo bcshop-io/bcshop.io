@@ -19,7 +19,8 @@ function Prepare(accounts) {
         holder1 = accounts[1];
         holder2 = accounts[2];
         token = await Token.new(1000, 0);
-        
+        await token.setLockedState(false);
+        await token.allowTransferFor(owner, false);
         return resolve(true);
     })
 }

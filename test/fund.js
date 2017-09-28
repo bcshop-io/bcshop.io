@@ -39,6 +39,7 @@ function Prepare(accounts) {
         etherHolder = accounts[4];
 
         token = await Token.new(TokenCap, 18);
+        await token.setLockedState(false);
         btoken = await BToken.new("BCB Token", "BCB", 18);
         fund = await Fund.new(token.address, btoken.address, BonusEtherRate, 1);
         
@@ -94,12 +95,13 @@ contract("BonusTokenFund. BCS-BCB exchange.", function(accounts) {
 
     it("withdraw BCS tokens from fund", async function() {
         await fund.withdrawTokens(token.address, owner, await _RT(token, 2), {from: owner});
-        assert.equal(await _TB(token, owner), await _RT(token, 402), "Owner should have 402 bcs tokens");        
+        assert.equal(await _TB(token, owner), await _RT(token, 702), "Owner should have 702 bcs tokens");        
+        assert.equal(await _TB(token, fund.address), await _RT(token, 1), "Fund should have 1 bcs token")
     })
     
     it("invalid withdraw BCS tokens from fund, invalid sender", async function() {
         try {
-            await fund.withdrawTokens(token.address, owner, await _RT(token, 2), {from: holder1});
+            await fund.withdrawTokens(token.address, owner, await _RT(token, 1), {from: holder1});
         } catch(e) {
             return true;
         }

@@ -21,12 +21,14 @@ contract BCSToken is ValueToken, ReturnableToken, IBurnableToken {
     function BCSToken(uint256 _initialSupply, uint8 _decimals) {
         name = "BCSHOP TOKEN 1.0";
         symbol = "";
-        decimals = _decimals;
-        transferLocked = false;
+        decimals = _decimals;        
 
         tokensIssued = _initialSupply * (uint256(10) ** decimals);
         //store all tokens at the owner's address;
         balances[msg.sender] = tokensIssued;
+
+        transferLocked = true;
+        transferAllowed[msg.sender] = true;        
     }
 
     /**@dev ERC20StandatdToken override */
