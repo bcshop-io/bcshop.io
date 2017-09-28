@@ -39,7 +39,8 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
     // Overpay refund was processed for a contributor
     event OverpayRefund(address investor, uint weiAmount);
 
-    /**@dev Crowdsale constructor, can specify startTime as 0 to start crowdsale immediately */ 
+    /**@dev Crowdsale constructor, can specify startTime as 0 to start crowdsale immediately 
+    _tokensForOneEther - doesn't depend on token decimals   */ 
     function BCSCrowdsale(        
         ITokenPool _tokenPool,
         IInvestRestrictions _restrictions,
@@ -83,9 +84,7 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
 
     function invest() payable {
         require(canInvest(msg.sender, msg.value));
-        // require(getState() == State.Active);
-        // require(address(restrictions) == 0x0 || restrictions.canInvest(msg.sender, msg.value, tokensLeft()));
-
+        
         uint256 excess;
         uint256 weiPaid = msg.value;
         uint256 tokensToBuy;
@@ -115,9 +114,9 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
 
     /**@dev Returns true if it is possible to invest */
     function canInvest(address investor, uint256 amount) constant returns(bool) {
-        return getState() == State.Active && 
-                tokensLeft() > 0 && 
-                restrictions.canInvest(investor, amount, tokensLeft());
+        return getState() == State.Active &&
+                    (address(restrictions) == 0x0 || 
+                    restrictions.canInvest(investor, amount, tokensLeft()));
     }
 
     /**@dev ICrowdsaleFormula override */

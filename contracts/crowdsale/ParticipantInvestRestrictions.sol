@@ -56,7 +56,12 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
 
     /**@dev Returns true if there are still free places for investors */
     function hasFreePlaces() constant returns (bool) {
-        return investorsCount + knownReserved + unknownReserved < maxInvestors;
+        return getInvestorCount() < maxInvestors;
+    }
+
+    /**@dev Returns number of investors, including reserved */
+    function getInvestorCount() constant returns(uint32) {
+        return investorsCount + knownReserved + unknownReserved;
     }
 
     /**@dev IInvestRestrictions override */

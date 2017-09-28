@@ -6,6 +6,8 @@ import '../common/Owned.sol';
 ///Owner is always a manager too
 contract Manageable is Owned {
 
+    event ManagerSet(address manager, bool state);
+
     mapping (address => bool) public managers;
 
     function Manageable() Owned() {
@@ -27,5 +29,6 @@ contract Manageable is Owned {
 
     function setManager(address manager, bool state) ownerOnly {
         managers[manager] = state;
+        ManagerSet(manager, state);
     }
 }
