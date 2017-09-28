@@ -5,7 +5,7 @@
 //
 
 var Web3 = require("web3");
-var web3 = new Web3();
+web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
 
 var Token = artifacts.require("BCSToken");
 var Pool = artifacts.require("TokenPool");
@@ -58,8 +58,8 @@ contract("FloorInvestRestrictions", function(accounts) {
         crowdsale = await Crowdsale.new(pool.address, restrictions.address, beneficiary, 0, 1, 0, tokensForOneEther, 0);
 
         await pool.setTrustee(crowdsale.address, true);
-        await restrictions.setManager(crowdsale.address, true);
-
+        var r = await restrictions.setManager(crowdsale.address, true);
+        
         assert.equal(await crowdsale.canInvest.call(investor1, floorEther), true, "investor1 should be able to invest");
         assert.equal(await crowdsale.canInvest.call(investor1, floorEther / 2), false, "investor1 shouldnt be able to invest");
         assert.equal(await crowdsale.canInvest.call(investor2, floorEther), true, "investor2 should be able to invest");        
@@ -99,18 +99,22 @@ contract("ParticipantInvestRestrictions: 3 total allowed. Everybody invests with
         await restrictions.setFormula(crowdsale.address);
 
         assert.isTrue(await crowdsale.canInvest.call(investor1, floorEther), "Everybody can invest now");
-        assert.isTrue(await restrictions.hasFreePlaces.call(), "Should be 3 free places");        
+        assert.isTrue(await restrictions.hasFreePlaces.call(), "Should be 3 free places");  
+        assert.equal(await restrictions.getInvestorCount.call(), 0, "Should have 0 investors");
     })
 
     it("everybody invests", async function() {        
         await crowdsale.invest({from:investor1, value: floorEther}); //should buy 200 tokens
         assert.equal(await token.balanceOf.call(investor1), 200, "investor1 should get 200 tokens");
+        assert.equal(await restrictions.getInvestorCount.call(), 1, "Should have 1 investors");
+        
         await crowdsale.invest({from:investor2, value: floorEther}); 
-
+        assert.equal(await restrictions.getInvestorCount.call(), 2, "Should have 2 investors");
         assert.isTrue(await restrictions.hasFreePlaces.call(), "Should have free place");
+        
         await crowdsale.invest({from:investor3, value: floorEther}); 
-
         assert.isFalse(await restrictions.hasFreePlaces.call(), "Should have no free places");
+        assert.equal(await restrictions.getInvestorCount.call(), 3, "Should have 3 investors");
     })
 
     it("unallowed investment, max participants already", async function() {
@@ -119,7 +123,8 @@ contract("ParticipantInvestRestrictions: 3 total allowed. Everybody invests with
         } catch(e) {
             return true;
         }
-        asser.isTrue(false, "Invesstment should be failed");
+        asser.isTrue(false, "Investment should be failed");
+        assert.equal(await restrictions.getInvestorCount.call(), 3, "Should have 3 investors");
     })
 })
 
@@ -141,7 +146,8 @@ contract("ParticipantInvestRestrictions: 3 total allowed, reserve 1 for unknown.
         var result = await restrictions.reserve(floorEther * 2);
         assert.equal(await restrictions.tokensReserved.call(), 400, "400 tokens should be reserved");        
         assert.equal(result.logs[0].event, "ReserveUnknown", "Should emit ReserveUnknown event");
-        assert.equal(result.logs[0].args.index, 0, "Should emit ReserveUnknown event [0]");        
+        assert.equal(result.logs[0].args.index, 0, "Should emit ReserveUnknown event [0]");
+        assert.equal(await restrictions.getInvestorCount.call(), 1, "Should have 1 investors");
     })
 
     it("reserve for investor2", async function() {
@@ -149,7 +155,8 @@ contract("ParticipantInvestRestrictions: 3 total allowed, reserve 1 for unknown.
         assert.equal((await restrictions.tokensReserved.call()).toNumber(), 600, "200 more tokens should be reserved");
         assert.isTrue(await restrictions.hasFreePlaces.call(), "Should have free places");        
         assert.isTrue(await crowdsale.canInvest.call(investor3, floorEther));
-   })
+        assert.equal(await restrictions.getInvestorCount.call(), 2, "Should have 2 investors");
+    })
 
     it("try to unreserve more than was reserved", async function() {
         try {
@@ -163,11 +170,13 @@ contract("ParticipantInvestRestrictions: 3 total allowed, reserve 1 for unknown.
     it("investor1 invests less than promised, cancel reservation", async function() {
         await crowdsale.invest({from:investor1, value: floorEther});
         await restrictions.unreserve(0);
+        assert.equal(await restrictions.getInvestorCount.call(), 2, "Should have 2 investors");
         assert.equal((await restrictions.tokensReserved.call()).toNumber(), 200, "200 tokens should be reserved");
     })
 
     it("investor1 invests again, shouldn't affect reserved tokens", async function() {
          await crowdsale.invest({from:investor1, value: floorEther / 2}); 
+         assert.equal(await restrictions.getInvestorCount.call(), 2, "Should have 2 investors");
          assert.equal((await restrictions.tokensReserved.call()).toNumber(), 200, "200 tokens should be reserved");
          assert.isTrue(await restrictions.hasFreePlaces.call(), "Should have free places");        
     })
@@ -178,6 +187,7 @@ contract("ParticipantInvestRestrictions: 3 total allowed, reserve 1 for unknown.
          assert.equal(await crowdsale.tokensLeft.call(), 500, "500 tokens should be left for sale");
          assert.isFalse(await restrictions.hasFreePlaces.call(), "Should have no free places");                 
          assert.isFalse(await crowdsale.canInvest.call(investor4, floorEther));
+         assert.equal(await restrictions.getInvestorCount.call(), 3, "Should have 3 investors");
     })
 
     it("unallowed investment from investor4, already max investors", async function() {
@@ -193,6 +203,7 @@ contract("ParticipantInvestRestrictions: 3 total allowed, reserve 1 for unknown.
         await crowdsale.invest({from:investor2, value: floorEther});
         assert.equal((await restrictions.tokensReserved.call()).toNumber(), 0, "0 tokens should be reserved");
         assert.isFalse(await restrictions.hasFreePlaces.call(), "Should have no free places");        
+        assert.equal(await restrictions.getInvestorCount.call(), 3, "Should have 3 investors");
     })
 })
 
@@ -212,7 +223,8 @@ contract("ParticipantInvestRestrictions. Reserve for 1 all the tokens so that no
 
     it("reserve all the tokens for investor1", async function() {
         await restrictions.reserveFor(investor1, floorEther * 4.5); //900 tokens
-        assert.equal((await restrictions.tokensReserved.call()).toNumber(), 900, "900 tokens should be reserved");        
+        assert.equal((await restrictions.tokensReserved.call()).toNumber(), 900, "900 tokens should be reserved");
+        assert.equal(await restrictions.getInvestorCount.call(), 1, "Should have 1 investors");
     })
 
     it("there should be places but nobody can invest due to floor restrictions", async function() {
@@ -235,6 +247,7 @@ contract("ParticipantInvestRestrictions. Reserve for 1 all the tokens so that no
         await crowdsale.invest({from:investor1, value: floorEther * 3}); //600 tokens
         assert.equal(await restrictions.tokensReserved.call(), 0, "0 tokens should be reserved");
         assert.equal(await token.balanceOf.call(investor1), 600, "investor1 should get 600 tokens");        
+        assert.equal(await restrictions.getInvestorCount.call(), 1, "Should have 1 investors still");
     })
     
     it("now investor2 should be able to invest", async function() {
@@ -246,6 +259,7 @@ contract("ParticipantInvestRestrictions. Reserve for 1 all the tokens so that no
         await crowdsale.invest({from:investor2, value: floorEther * 2}); 
         assert.equal(await token.balanceOf.call(investor2), 400, "investor2 should get 400 tokens");
         assert.equal(await crowdsale.tokensLeft.call(), 0, "Should have 0 tokens for sale");
+        assert.equal(await restrictions.getInvestorCount.call(), 2, "Should have 2 investors");
     })
 
     it("there should be places but all tokens are sold and nobody can invest", async function() {
@@ -254,6 +268,7 @@ contract("ParticipantInvestRestrictions. Reserve for 1 all the tokens so that no
         assert.isFalse(await crowdsale.canInvest(investor3, floorEther), "Investor3 shouldn't be able to invest");
     })
 })
+
 
 contract("ParticipantInvestRestrictions. Reserve 2 for unknown, so 1 is available. ", function(accounts) {
     it("initial allowance", async function() {
@@ -274,11 +289,13 @@ contract("ParticipantInvestRestrictions. Reserve 2 for unknown, so 1 is availabl
 
         assert.isTrue(await restrictions.hasFreePlaces.call(), "Should be free places");
         assert.equal(await restrictions.tokensReserved.call(), 600, "600 tokens should be reserved");
+        assert.equal(await restrictions.getInvestorCount.call(), 2, "Should have 2 investors");
     })
 
     it("investor1 invests, dont cancel reserve", async function() {
         await crowdsale.invest({from:investor1, value: floorEther}); 
         assert.isFalse(await restrictions.hasFreePlaces.call(), "Should be no free places");
+        assert.equal(await restrictions.getInvestorCount.call(), 3, "Should have 3 investors (before unreservation)");
     })
 
     it("unallowed investment from investor2", async function() {
@@ -295,6 +312,57 @@ contract("ParticipantInvestRestrictions. Reserve 2 for unknown, so 1 is availabl
         assert.equal(await restrictions.tokensReserved.call(), 200, "200 tokens should be reserved");
         assert.isTrue(await restrictions.hasFreePlaces.call(), "Should be free places");
         assert.isTrue(await crowdsale.canInvest(investor2, floorEther));
+        assert.equal(await restrictions.getInvestorCount.call(), 2, "Should have 2 investors");
     })
 })
 
+
+contract("ParticipantInvestRestrictions. Reserve and unreserve without investment", function(accounts) {
+    it("initial allowance", async function() {
+        await Prepare(accounts);
+        restrictions = await Restrictions.new(floorEther, 3);
+        crowdsale = await Crowdsale.new(pool.address, restrictions.address, beneficiary, 0, 1, 0, tokensForOneEther, 0);
+
+        await pool.setTrustee(crowdsale.address, true);
+        await restrictions.setManager(crowdsale.address, true);
+        await restrictions.setFormula(crowdsale.address);
+
+        assert.isTrue(await restrictions.hasFreePlaces.call(), "Should have free places");
+    })
+
+    it("reserve for investor1", async function() {
+        await restrictions.reserveFor(investor1, floorEther);
+        assert.equal(await restrictions.getInvestorCount.call(), 1, "Should have 1 investors");
+    })
+
+    it("unreserve investor1", async function() {
+        await restrictions.unreserveFor(investor1);
+        assert.equal(await restrictions.getInvestorCount.call(), 0, "Should have 0 investors");
+    })
+
+    it("reserve for investor1 and invest", async function() {
+        await restrictions.reserveFor(investor1, floorEther * 2);
+        await crowdsale.invest({from:investor1, value: floorEther*2});
+        assert.equal(await restrictions.getInvestorCount.call(), 1, "Should have 1 investors");
+    })
+
+    it("should fail to unreserve investor1 now", async function() {
+        try {
+            await restrictions.unreserve(investor1);
+        } catch(e) {
+            return true;
+        }
+
+        assert.isTrue(false, "Unreservation should fail");
+    })
+
+    it("investor1 invests again", async function() {
+        await crowdsale.invest({from:investor1, value: floorEther});
+        assert.equal(await restrictions.getInvestorCount.call(), 1, "Should have 1 investors");
+    })
+
+    it("investor2 invests through send", async function() {       
+       await web3.eth.sendTransaction({from:investor2, to:crowdsale.address, value:floorEther, gas: 250000});
+       assert.equal(await restrictions.getInvestorCount.call(), 2, "Should have 2 investors");
+    })
+})
