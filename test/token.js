@@ -103,7 +103,7 @@ contract("BCSToken. try to call internal methods", function(accounts) {
         assert.equal(await _TB(user1), await _RT(250), "Legal transfer should be OK");
     })
 
-    it("make illegal transfer from. should fail", async function() {
+    it("make illegal transferFrom. should fail", async function() {
         try {
             await villain.makeErrorTransfer(token.address, user1, 0);
         } catch(e) {

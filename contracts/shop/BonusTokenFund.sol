@@ -18,7 +18,7 @@ contract BonusTokenFund is IBonusTokenFund, ValueTokenAgent, ReturnTokenAgent, T
     /**@dev tokenPoints at the moment of holder's last update*/
     mapping (address => uint256) lastClaimedPoints;
 
-    /**@dev bonus token points accumalted so far for all holders */
+    /**@dev bonus token points accumulated so far for all holders */
     mapping (address => uint256) bonusTokenPoints;
 
     /**@dev true if address is allowed to exchange tokens for ether compensation */
@@ -34,7 +34,7 @@ contract BonusTokenFund is IBonusTokenFund, ValueTokenAgent, ReturnTokenAgent, T
     FloatingSupplyToken public bonusToken;
 
     /**@dev Bonus token price expressed in real(value) tokens */
-    uint256 bonusTokenPrice; 
+    uint256 public bonusTokenPrice; 
 
     function BonusTokenFund(
         ValueToken _realToken, 
@@ -103,7 +103,7 @@ contract BonusTokenFund is IBonusTokenFund, ValueTokenAgent, ReturnTokenAgent, T
     //
 
     /**@dev Returns amount of tokens generated for specific account since last update*/
-    function tokensSinceLastUpdate(address holder) internal constant returns (uint256) {
+    function tokensSinceLastUpdate(address holder) internal  constant returns (uint256) {
         return tokenEtherRate * (totalTokenPoints() - lastClaimedPoints[holder]) * valueToken.balanceOf(holder) / MULTIPLIER; 
     }    
 
@@ -140,8 +140,8 @@ contract BonusTokenFund is IBonusTokenFund, ValueTokenAgent, ReturnTokenAgent, T
 
     /**@dev transfers ether in exchange for bonus tokens */
     function returnEther(address to, uint256 bonusTokensAmount) internal {        
-        uint256 etherAmount = bonusTokensAmount / tokenEtherRate;
-        lastBalance = safeSub(this.balance, etherAmount);
+        uint256 etherAmount = bonusTokensAmount / tokenEtherRate;        
+        lastBalance = safeSub(lastBalance, etherAmount);
         to.transfer(etherAmount);
     }
 }
