@@ -9,6 +9,9 @@ contract IInvestRestrictions is Manageable {
         investor; amount; result; tokensLeft;
     }
 
+    /**@dev Returns how many tokens are not for sale, investor - the one who tries to invest */
+   // function forbiddenTokens(address investor) constant returns(uint256 _tokens) {investor; _tokens;}
+
     /**@dev Called when investment was made */
-    function investHappened(address investor, uint amount) managerOnly {}
+    function investHappened(address investor, uint amount) managerOnly {}    
 }

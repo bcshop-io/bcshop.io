@@ -28,6 +28,7 @@ contract("BCSToken", function(accounts) {
         token = await Token.new(TokenCap, 18);
         await token.setLockedState(false);
         assert.equal(await _TB(owner), await _RT(1000), "Owner shoudl have all the tokens");
+        assert.equal(await token.name.call(), "BCSHOP TOKEN 1.0", "Invalid token name");
     })
 
     it("transfer tokens", async function() {

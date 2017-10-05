@@ -166,4 +166,3 @@ contract("BonusTokenFund. Tranche - Get bonuses - Tranche - Sell bonuses - Tranc
         assert.equal((await fund.bonusTokensToIssue.call(owner)).toNumber(), await _RT(btoken, 2700), "2700 bonus tokens for holder1");
     })
 })
-

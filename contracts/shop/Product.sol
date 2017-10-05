@@ -139,7 +139,6 @@ contract Product is Manageable, ReentryProtected, SafeMath {
          If there is an error then the vendor just won't receive any ether and reimplement its fallback function */
         //assert(vendorInfo.vendor().call.value(etherToVendor)());
         vendorInfo.vendor().transfer(etherToVendor);
-        
         ProductBought(msg.sender, unitsToBuy, clientId);
     }
 

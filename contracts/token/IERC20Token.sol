@@ -4,11 +4,12 @@ pragma solidity ^0.4.10;
 https://theethereum.wiki/w/index.php/ERC20_Token_Standard 
 https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20-token-standard.md */
 contract IERC20Token {
-    string public name;
-    string public symbol;
-    uint8 public decimals;
 
-    // these functions aren't abstract since the compiler emits automatically generated getter functions as external
+    // these functions aren't abstract since the compiler emits automatically generated getter functions as external    
+    function name() public constant returns (string _name) { _name; }
+    function symbol() public constant returns (string _symbol) { _symbol; }
+    function decimals() public constant returns (uint8 _decimals) { _decimals; }
+    
     function totalSupply() constant returns (uint total) {total;}
     function balanceOf(address _owner) constant returns (uint balance) {_owner; balance;}    
     function allowance(address _owner, address _spender) constant returns (uint remaining) {_owner; _spender; remaining;}

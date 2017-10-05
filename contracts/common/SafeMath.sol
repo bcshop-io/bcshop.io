@@ -7,7 +7,7 @@ pragma solidity ^0.4.10;
 contract SafeMath {
 
     /**dev Returns the sum of a and b. Throws an exception if it exceeds uint256 limits*/
-    function safeAdd(uint256 a, uint256 b) internal returns (uint256) {
+    function safeAdd(uint256 a, uint256 b) internal returns (uint256) {        
         uint256 c = a + b;
         assert(c >= a);
 

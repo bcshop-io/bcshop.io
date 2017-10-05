@@ -68,6 +68,6 @@ contract TokenProduct is Product {
         tokenAmount = token.getRealTokenAmount(tokenAmount); //considering decimals
 
         token.mint(msg.sender, tokenAmount);
-        buyers[msg.sender] = safeAdd(buyers[msg.sender], tokenAmount);
+        buyers[msg.sender] = safeAdd(buyers[msg.sender], tokenAmount);        
     }
 }

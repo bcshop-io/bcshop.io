@@ -51,7 +51,7 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
 
     /**@dev Sets formula */
     function setFormula(ICrowdsaleFormula _formula) managerOnly {
-        formula = _formula;
+        formula = _formula;        
     }
 
     /**@dev Returns true if there are still free places for investors */
@@ -85,8 +85,17 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
             }
         }
 
-        return false;        
+        return false;
     }
+
+    // /**@dev IInvestRestrictions implementation */
+    // function forbiddenTokens(address investor) constant returns(uint256 _tokens) {
+    //     if (tokensReserved > reservedInvestors[investor]) {
+    //         return tokensReserved - reservedInvestors[investor];
+    //     } else {
+    //         return 0;
+    //     }
+    // }
 
     /**@dev IInvestRestrictions override */
     function investHappened(address investor, uint amount) managerOnly {
@@ -105,8 +114,11 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
     function reserveFor(address investor, uint256 weiAmount) managerOnly {
         require(!investors[investor] && hasFreePlaces());
 
-        knownReserved++;
-        reservedInvestors[investor] = reserveTokens(weiAmount);
+        if(reservedInvestors[investor] == 0) {
+            knownReserved++;
+        }
+
+        reservedInvestors[investor] += reserveTokens(weiAmount);
         ReserveKnown(true, investor, weiAmount, reservedInvestors[investor]);
     }
 
@@ -153,7 +165,15 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
         uint256 tokens;
         uint256 excess;
         (tokens, excess) = formula.howManyTokensForEther(weiAmount);
+        
+        if (tokensReserved + tokens > formula.tokensLeft()) {
+            tokens = formula.tokensLeft() - tokensReserved;
+        }
         tokensReserved += tokens;
+        
+        // if(tokensReserved > formula.tokensLeft()) {
+        //     tokensReserved = formula.tokensLeft();
+        // }
 
         return tokens;
     }
