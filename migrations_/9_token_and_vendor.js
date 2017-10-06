@@ -1,4 +1,4 @@
-var token = artifacts.require("BCSBonusToken");
+var token = artifacts.require("BCSPromoToken");
 var vendor = artifacts.require("TokenVendor");
 
 module.exports = function(deployer, network, accounts) {        
