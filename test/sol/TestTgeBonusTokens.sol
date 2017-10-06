@@ -5,7 +5,7 @@ import "truffle/DeployedAddresses.sol";
 
 import "../contracts/crowdsale/BCSTokenCrowdsale.sol";
 import "../contracts/token/BCSToken.sol";
-import "../contracts/token/BCSBonusToken.sol";
+import "../contracts/token/BCSPromoToken.sol";
 import "../contracts/token/TokenPool.sol";
 import "../contracts/helpers/AddressStorage.sol";
 
@@ -19,8 +19,8 @@ contract TestTgeBonusTokens {
     address bonusTokenHolder;
 
     BCSTokenCrowdsale tgeSale;
-    BCSBonusToken bonusToken;
-    BCSBonusToken fakeToken;
+    BCSPromoToken bonusToken;
+    BCSPromoToken fakeToken;
     BCSToken tgeToken;
     TokenPool pool;
 
@@ -48,7 +48,7 @@ contract TestTgeBonusTokens {
         beneficiary = asr.address2();
         bonusTokenHolder = this;
                 
-        bonusToken = new BCSBonusToken();
+        bonusToken = new BCSPromoToken();
         tgeToken = new BCSToken(maxTgeTokens, 0);
 
         pool = new TokenPool(tgeToken);                
