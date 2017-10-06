@@ -66,8 +66,7 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
         } else {
             startTime = _startTime;
         }
-        endTime = (_durationInHours * 1 hours) + startTime;
-        //endTime = (_durationInHours * 1 minutes) + startTime;
+        endTime = (_durationInHours * 1 hours) + startTime;        
         
         tokensForOneEther = _tokensForOneEther;
         minimumGoalInWei = _goalInWei;
@@ -147,10 +146,6 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
         return tokenPool.getTokenAmount();
     }
 
-    // function forbiddenTokens(address investor) constant returns(uint256) {
-    //     return address(restrictions) == 0x0 ? 0 : restrictions.forbiddenTokens(investor);
-    // }
-
     /**@dev Returns funds that should be sent to beneficiary */
     function amountToBeneficiary() constant returns (uint256) {
         return weiCollected;
@@ -222,11 +217,4 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
     function changeBeneficiary(address newBeneficiary) managerOnly {
         beneficiary = newBeneficiary;
     }
-
-    /***********************************************************************************************
-    * temp dev methods 
-    ***********************************************************************************************/
-    // function changeEndTime(uint256 newTime) {
-    //     endTime = newTime;
-    // }
 }

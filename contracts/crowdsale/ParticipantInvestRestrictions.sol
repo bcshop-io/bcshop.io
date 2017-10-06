@@ -68,12 +68,6 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
     function canInvest(address investor, uint amount, uint tokensLeft) constant returns (bool result) {
         //First check ancestor's restriction. 
         //Allow only if it is reserved investor or it invested earlier or there is still room for new investors
-        // result = super.canInvest(investor, amount, tokensLeft)  && 
-        //             (reservedInvestors[investor] > 0 || 
-        //                 (investors[investor] || 
-        //                 hasFreePlaces()) && 
-        //                 tokensLeft >= tokensReserved);
-    
         if (super.canInvest(investor, amount, tokensLeft)) {
             if (reservedInvestors[investor] > 0) {
                 return true;
@@ -87,16 +81,7 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
 
         return false;
     }
-
-    // /**@dev IInvestRestrictions implementation */
-    // function forbiddenTokens(address investor) constant returns(uint256 _tokens) {
-    //     if (tokensReserved > reservedInvestors[investor]) {
-    //         return tokensReserved - reservedInvestors[investor];
-    //     } else {
-    //         return 0;
-    //     }
-    // }
-
+ 
     /**@dev IInvestRestrictions override */
     function investHappened(address investor, uint amount) managerOnly {
         if (!investors[investor]) {
@@ -170,10 +155,6 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
             tokens = formula.tokensLeft() - tokensReserved;
         }
         tokensReserved += tokens;
-        
-        // if(tokensReserved > formula.tokensLeft()) {
-        //     tokensReserved = formula.tokensLeft();
-        // }
 
         return tokens;
     }

@@ -19,8 +19,8 @@ contract BCSToken is ValueToken, ReturnableToken, IBurnableToken {
 
     /**@dev Creates a token with given initial supply  */
     function BCSToken(uint256 _initialSupply, uint8 _decimals) {
-        name = "BCSHOP TOKEN 1.0";
-        symbol = "";
+        name = "BCShop.io Token";
+        symbol = "BCS";
         decimals = _decimals;        
 
         tokensIssued = _initialSupply * (uint256(10) ** decimals);

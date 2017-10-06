@@ -28,13 +28,13 @@ contract FloorInvestRestrictions is IInvestRestrictions {
         }
     }
 
-    // /**@dev IInvestRestrictions implementation */
-    // function forbiddenTokens(address investor) constant returns(uint256 _tokens) {
-    //     return 0;
-    // }
-
     /**@dev IInvestRestrictions implementation */
     function investHappened(address investor, uint amount) managerOnly {
         investors[investor] = true;
+    }
+
+    /**@dev Changes investment low cap */
+    function changeFloor(uint256 newFloor) managerOnly {
+        floor = newFloor;
     }
 }
