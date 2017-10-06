@@ -85,6 +85,27 @@ contract("FloorInvestRestrictions", function(accounts) {
         await crowdsale.invest({from: investor1, value: floorEther / 2});
         assert.equal(await token.balanceOf(investor1), 300, "investor1 should have 300 tokens");                
     })
+
+    it("change floor", async function() {
+        await restrictions.changeFloor(floorEther / 2);
+        assert.equal(await restrictions.floor.call(), floorEther / 2, "New low cap should be half less");
+        assert.isTrue(await crowdsale.canInvest.call(investor2, floorEther / 2), "investor2 should be able to invest");
+    })
+
+    it("allowed investment from investor2, new floor", async function () {
+        await crowdsale.invest({from: investor2, value: floorEther / 2});
+        assert.equal(await token.balanceOf(investor2), 100, "investor2 should have 100 tokens");                
+    })
+
+    it("unallowed investment from investor3, size too small", async function() {        
+        try {
+            await crowdsale.invest({from: investor3, value: floorEther / 3});
+        } catch (e) {
+            //console.log(e);
+            return true;
+        }
+        throw new Error("Should fail withdraw");
+    })
 })
 
 contract("ParticipantInvestRestrictions: Reserve/unreserve for more than cap. ", function(accounts){    
