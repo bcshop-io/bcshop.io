@@ -17,7 +17,7 @@ contract MintableToken is Manageable, ERC20StandardToken {
     }
 
     function MintableToken() {
-        minters[owner] = true;
+        minters[owner] = true;        
     }
 
     /**@dev Allow or disallow given address to mint new tokens */
@@ -27,8 +27,11 @@ contract MintableToken is Manageable, ERC20StandardToken {
 
     /**@dev Creates given amount of tokens*/
     function mint(address beneficiary, uint256 amount) minterOnly {
-        balances[beneficiary] += amount;
-        tokensIssued += amount;
+        // balances[beneficiary] += amount;
+        // tokensIssued += amount;
+
+        balances[beneficiary] = safeAdd(balances[beneficiary], amount);
+        tokensIssued = safeAdd(tokensIssued, amount);
         Transfer(0x0, beneficiary, amount);
     }
 }

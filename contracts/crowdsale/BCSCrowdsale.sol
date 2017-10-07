@@ -20,6 +20,7 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
     uint256 public endTime; //unix timestamp of end date
     uint256 public minimumGoalInWei; //TODO or in tokens
     uint256 public tokensForOneEther; //how many tokens can you buy for 1 ether   
+    uint256 realAmountForOneEther; //how many tokens can you buy for 1 ether * 10**decimals   
     uint256 bonusPct;   //additional percent of tokens    
     bool public withdrew; //true if beneficiary already withdrew
 
@@ -65,8 +66,7 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
         } else {
             startTime = _startTime;
         }
-        endTime = (_durationInHours * 1 hours) + startTime;
-        //endTime = (_durationInHours * 1 minutes) + startTime;
+        endTime = (_durationInHours * 1 hours) + startTime;        
         
         tokensForOneEther = _tokensForOneEther;
         minimumGoalInWei = _goalInWei;
@@ -76,6 +76,8 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
         tokensSold = 0;
         failure = false;
         withdrew = false;
+
+        realAmountForOneEther = tokenPool.token().getRealTokenAmount(tokensForOneEther);
     }
 
     function() payable {
@@ -90,7 +92,7 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
         uint256 tokensToBuy;
         (tokensToBuy, excess) = howManyTokensForEther(weiPaid);
 
-        require(tokensToBuy <= tokensLeft());
+        require(tokensToBuy <= tokensLeft() && tokensToBuy > 0);
 
         if (excess > 0) {
             overpays[msg.sender] = safeAdd(overpays[msg.sender], excess);
@@ -120,9 +122,8 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
     }
 
     /**@dev ICrowdsaleFormula override */
-    function howManyTokensForEther(uint256 weiAmount) constant returns(uint256 tokens, uint256 excess) {
-        uint256 realAmountForOneEther = tokenPool.token().getRealTokenAmount(tokensForOneEther);
-        uint256 bpct = getCurrentBonusPct();
+    function howManyTokensForEther(uint256 weiAmount) constant returns(uint256 tokens, uint256 excess) {        
+        uint256 bpct = getCurrentBonusPct();        
         uint256 maxTokens = (tokensLeft() * 100) / (100 + bpct);
 
         tokens = weiAmount * realAmountForOneEther / 1 ether;
@@ -216,11 +217,4 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
     function changeBeneficiary(address newBeneficiary) managerOnly {
         beneficiary = newBeneficiary;
     }
-
-    /***********************************************************************************************
-    * temp dev methods 
-    ***********************************************************************************************/
-    // function changeEndTime(uint256 newTime) {
-    //     endTime = newTime;
-    // }
 }

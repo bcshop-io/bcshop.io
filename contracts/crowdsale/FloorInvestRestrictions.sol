@@ -16,7 +16,7 @@ contract FloorInvestRestrictions is IInvestRestrictions {
         floor = _floor;
     }
 
-    /** IInvestRestrictions implementation */
+    /**@dev IInvestRestrictions implementation */
     function canInvest(address investor, uint amount, uint tokensLeft) constant returns (bool result) {
         
         //allow investment if it isn't the first one 
@@ -28,8 +28,13 @@ contract FloorInvestRestrictions is IInvestRestrictions {
         }
     }
 
-    /** IInvestRestrictions implementation */
+    /**@dev IInvestRestrictions implementation */
     function investHappened(address investor, uint amount) managerOnly {
         investors[investor] = true;
+    }
+
+    /**@dev Changes investment low cap */
+    function changeFloor(uint256 newFloor) managerOnly {
+        floor = newFloor;
     }
 }

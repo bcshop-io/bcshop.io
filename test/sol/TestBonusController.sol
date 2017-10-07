@@ -9,7 +9,7 @@ contract TestBonusController {
 
     address beneficiary;
     BCSBonusController bonusController;
-    BCSBonusToken token;
+    BCSPromoToken token;
     TokenVendor vendor;
 
     function TestBonusController() {}

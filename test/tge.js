@@ -244,5 +244,6 @@ contract("BCSTgeSale, BCSToken, BCSPreTgeToken, BCSPromoToken", function(account
 
         var diff = newBalance - oldBalance;
         assert.equal(diff, await _RT(token, 23), "23 not bought tokens should be returned to owner");
+        assert.equal(await _TB(token, pool.address), 0, "Pool should be empty");
     }) 
 })

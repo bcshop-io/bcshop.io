@@ -2,7 +2,7 @@ pragma solidity ^0.4.10;
 
 import "truffle/Assert.sol";
 import "truffle/DeployedAddresses.sol";
-import "../contracts/token/BCSBonusToken.sol";
+import "../contracts/token/BCSPromoToken.sol";
 import "../contracts/misc/SimpleReturnAgent.sol";
 import "../contracts/helpers/AddressStorage.sol";
 
@@ -15,7 +15,7 @@ contract TestReturnToken {
     uint256 public initialTokens = 10;
     uint256 public tokensToReturn = 2;
 
-    BCSBonusToken token;
+    BCSPromoToken token;
     SimpleReturnAgent agent;
 
     function TestReturnToken() {}
@@ -23,7 +23,7 @@ contract TestReturnToken {
     function () payable {}
 
     function beforeAllInit() {
-        token = new BCSBonusToken();          
+        token = new BCSPromoToken();          
         agent = new SimpleReturnAgent();    
     }
 

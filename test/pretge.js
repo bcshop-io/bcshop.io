@@ -120,4 +120,13 @@ contract("BCSCrowdsale. Lock token transfer for everybody", function(accounts) {
         assert.equal(await _TB(investor1), await _RT(99), "Investor1 should have 99 tokens");
         assert.equal(await _TB(investor3), await _RT(1), "Investor3 should have 1 tokens");
     })
+
+    it("advance time to the end and withdraw", async function() {        
+        await utils.timeTravelAndMine(DurationHours * 3600);
+        var oldBalance = await web3.eth.getBalance(beneficiary);
+        await sale.transferToBeneficiary();
+        var newBalance = await web3.eth.getBalance(beneficiary);
+
+        assert.equal(newBalance.minus(oldBalance).toNumber(), 3*OneEther, "Beneficiary should get 3E");
+    })
 })

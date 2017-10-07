@@ -75,6 +75,15 @@ contract("BCSPartnerCrowdsale. Tests partner fee and bonuses.", function(account
         assert.equal((await sale.getState.call()).toNumber(), 1, "Sale state should be 'BeforeStart'");
     })
 
+    it("try to invest too early. should fail", async function() {
+        try {
+            await web3.eth.sendTransaction({from:investor1, to:sale.address, value: OneEther, gas:InvestGasLimit});
+        } catch (e) {
+            return true;
+        }
+        assert.isTrue(false, "Investment should fail, too early");
+    })
+
     it("advance time ahead to start and check state", async function() {
         await utils.timeTravelAndMine(101);
         assert.equal((await sale.getState.call()).toNumber(), 2, "Sale state should be 'Active'");

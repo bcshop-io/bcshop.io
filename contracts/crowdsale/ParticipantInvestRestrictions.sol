@@ -51,7 +51,7 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
 
     /**@dev Sets formula */
     function setFormula(ICrowdsaleFormula _formula) managerOnly {
-        formula = _formula;
+        formula = _formula;        
     }
 
     /**@dev Returns true if there are still free places for investors */
@@ -68,12 +68,6 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
     function canInvest(address investor, uint amount, uint tokensLeft) constant returns (bool result) {
         //First check ancestor's restriction. 
         //Allow only if it is reserved investor or it invested earlier or there is still room for new investors
-        // result = super.canInvest(investor, amount, tokensLeft)  && 
-        //             (reservedInvestors[investor] > 0 || 
-        //                 (investors[investor] || 
-        //                 hasFreePlaces()) && 
-        //                 tokensLeft >= tokensReserved);
-    
         if (super.canInvest(investor, amount, tokensLeft)) {
             if (reservedInvestors[investor] > 0) {
                 return true;
@@ -85,9 +79,9 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
             }
         }
 
-        return false;        
+        return false;
     }
-
+ 
     /**@dev IInvestRestrictions override */
     function investHappened(address investor, uint amount) managerOnly {
         if (!investors[investor]) {
@@ -105,8 +99,11 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
     function reserveFor(address investor, uint256 weiAmount) managerOnly {
         require(!investors[investor] && hasFreePlaces());
 
-        knownReserved++;
-        reservedInvestors[investor] = reserveTokens(weiAmount);
+        if(reservedInvestors[investor] == 0) {
+            knownReserved++;
+        }
+
+        reservedInvestors[investor] += reserveTokens(weiAmount);
         ReserveKnown(true, investor, weiAmount, reservedInvestors[investor]);
     }
 
@@ -153,6 +150,10 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
         uint256 tokens;
         uint256 excess;
         (tokens, excess) = formula.howManyTokensForEther(weiAmount);
+        
+        if (tokensReserved + tokens > formula.tokensLeft()) {
+            tokens = formula.tokensLeft() - tokensReserved;
+        }
         tokensReserved += tokens;
 
         return tokens;

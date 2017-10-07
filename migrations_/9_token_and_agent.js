@@ -1,4 +1,4 @@
-var token = artifacts.require("BCSBonusToken");
+var token = artifacts.require("BCSPromoToken");
 var agent = artifacts.require("SimpleReturnAgent");
 
 module.exports = function(deployer, network, accounts) {        

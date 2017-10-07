@@ -5,6 +5,9 @@ import '../common/SafeMath.sol';
 
 /**@dev Standard ERC20 compliant token implementation */
 contract ERC20StandardToken is IERC20Token, SafeMath {
+    string public name;
+    string public symbol;
+    uint8 public decimals;
 
     //tokens already issued
     uint256 tokensIssued;

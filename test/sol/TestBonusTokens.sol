@@ -2,7 +2,7 @@ pragma solidity ^0.4.10;
 
 import "truffle/Assert.sol";
 import "truffle/DeployedAddresses.sol";
-import "../contracts/token/BCSBonusToken.sol";
+import "../contracts/token/BCSPromoToken.sol";
 import "../contracts/shop/TokenVendor.sol";
 import "../contracts/helpers/AddressStorage.sol";
 
@@ -13,7 +13,7 @@ contract TestBonusTokens {
     uint public initialBalance = 1 ether;
 
     TokenVendor vendor;    
-    BCSBonusToken token;
+    BCSPromoToken token;
     TokenProduct p1;
 
     address vendorWallet;
@@ -34,7 +34,7 @@ contract TestBonusTokens {
         providerWallet = asr.address2();
 
         vendor = new TokenVendor("BONUS", vendorWallet, providerWallet, FEE);
-        token = new BCSBonusToken();         
+        token = new BCSPromoToken();         
     }
 
     function testInitial() {

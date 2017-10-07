@@ -10,5 +10,5 @@ contract IInvestRestrictions is Manageable {
     }
 
     /**@dev Called when investment was made */
-    function investHappened(address investor, uint amount) managerOnly {}
+    function investHappened(address investor, uint amount) managerOnly {}    
 }

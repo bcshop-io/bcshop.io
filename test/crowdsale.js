@@ -32,6 +32,8 @@ var investor1;
 var investor2;
 var investor3;
 
+var InvestGasLimit = 170000;
+
 //returns real tokens amount considering token decimals
 async function _RT(_tokens) {
     return new Promise(async (resolve, reject) =>{
@@ -70,6 +72,91 @@ function Prepare(accounts, _beneficiary) {
         return resolve(true);
     })
 }
+
+
+contract("BCSCrowdsale. Tests too early and too late investments.", function(accounts) {
+    it("create", async function() {
+        await Prepare(accounts, accounts[1]);
+        
+        StartTime = utils.currentTime() + 100;
+        DurationHours = 1;
+        sale = await Crowdsale.new(pool.address, 0, beneficiary, StartTime, DurationHours, 0, TokensForOneEther, 0);                
+        await pool.setTrustee(sale.address, true);
+    })
+
+    it("check initial state", async function() {
+        assert.equal((await sale.getState.call()).toNumber(), 1, "Sale state should be 'BeforeStart'");
+    })
+
+    it("try to invest too early. should fail", async function() {
+        try {
+            await web3.eth.sendTransaction({from:investor1, to:sale.address, value: OneEther, gas:InvestGasLimit});
+        } catch (e) {
+            return true;
+        }
+        assert.isTrue(false, "Investment should fail, too early");
+    })
+
+    it("advance time ahead to start and check state", async function() {
+        await utils.timeTravelAndMine(101);
+        assert.equal((await sale.getState.call()).toNumber(), 2, "Sale state should be 'Active'");
+    })
+
+    it("invest", async function() {
+        var sBalance1 = await web3.eth.getBalance(sale.address);
+        await web3.eth.sendTransaction({from:investor1, to:sale.address, value: OneEther, gas:InvestGasLimit});
+        await web3.eth.sendTransaction({from:investor2, to:sale.address, value: 2 * OneEther, gas:InvestGasLimit});
+        var sBalance2 = await web3.eth.getBalance(sale.address);
+
+        assert.equal(sBalance2.minus(sBalance1).toNumber(), 3 * OneEther, "Sale should get 3E");
+    })
+
+    it("advance time to end", async function() {
+        await utils.timeTravelAndMine(3600);
+        assert.equal((await sale.getState.call()).toNumber(), 3, "Sale state should be 'Finished Success'");
+    })
+
+    it("try to invest too late. should fail", async function() {
+        try {
+            await web3.eth.sendTransaction({from:investor3, to:sale.address, value: OneEther, gas:InvestGasLimit});
+        } catch (e) {
+            return true;
+        }
+        assert.isTrue(false, "Investment should fail, too late");
+    })    
+})
+
+contract("BCSCrowdsale. Investor1 invests half of cap, Investor2 tries to invest more than half", function(accounts) {
+    it("create", async function() {
+        await Prepare(accounts, accounts[1]);
+        
+        StartTime = 0;
+        DurationHours = 1;
+        sale = await Crowdsale.new(pool.address, 0, beneficiary, StartTime, DurationHours, 0, TokensForOneEther, 0);                
+        await pool.setTrustee(sale.address, true);
+    })
+
+    it("investor1 invests half", async function() {
+        var investment1 = 5 * OneEther;
+        await sale.invest({from: investor1, value: investment1});         
+        assert.equal(await _TB(investor1), await _RT(500), "Investor1 should get 500 tokens");
+    })
+
+    it("investor2 invests more than half", async function() {
+        var investment1 = 7 * OneEther;
+        await sale.invest({from: investor2, value: investment1});         
+        assert.equal(await _TB(investor2), await _RT(500), "Investor1 should get 500 tokens");
+    })
+
+    it("investor2 should have 2E as overpay", async function() {
+        assert.equal(await sale.overpays.call(investor2), OneEther * 2, "Invalid overpay");
+        var oldBalance = await web3.eth.getBalance(investor2);
+        await sale.withdrawOverpay({from:investor2});
+        var newBalance = await web3.eth.getBalance(investor2);
+        assert.closeTo(newBalance.minus(oldBalance).toNumber(), Number(2 * OneEther), Number(OneEther/100), "Invalid overpay received");
+        assert.equal(await sale.overpays.call(investor2), 0, "Invalid 0 overpay");
+    })
+})
 
 contract("BCSCrowdsale. Inject ether via selfdestruct", function(accounts) {
     it("create", async function() {

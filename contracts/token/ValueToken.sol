@@ -33,10 +33,12 @@ contract ValueToken is Manageable, ERC20StandardToken {
 
         //first check if addresses are reserved and adjust reserved amount accordingly
         if (reserved[_from]) {
-            reservedAmount -= _value;
+            reservedAmount = safeSub(reservedAmount, _value);
+            //reservedAmount -= _value;
         } 
         if (reserved[_to]) {
-            reservedAmount += _value;
+            reservedAmount = safeAdd(reservedAmount, _value);
+            //reservedAmount += _value;
         }
 
         //then do actual transfer
@@ -58,9 +60,11 @@ contract ValueToken is Manageable, ERC20StandardToken {
 
         //change reserved token amount according to holder's state
         if (state) {
-            reservedAmount += holderBalance;
+            //reservedAmount += holderBalance;
+            reservedAmount = safeAdd(reservedAmount, holderBalance);
         } else {
-            reservedAmount -= holderBalance;
+            //reservedAmount -= holderBalance;
+            reservedAmount = safeSub(reservedAmount, holderBalance);
         }
 
         reserved[holder] = state;
