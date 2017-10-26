@@ -11,7 +11,7 @@ contract TokenPool is Manageable, ITokenPool {
     }
 
     /**@dev ITokenPool override */
-    function setTrustee(address trustee, bool state) managerOnly {
+    function setTrustee(address trustee, bool state) public managerOnly {
         if (state) {
             token.approve(trustee, token.balanceOf(this));
         } else {
@@ -20,12 +20,12 @@ contract TokenPool is Manageable, ITokenPool {
     }
 
     /**@dev ITokenPool override */
-    function getTokenAmount() constant returns (uint256 tokens) {
+    function getTokenAmount() public constant returns (uint256 tokens) {
         tokens = token.balanceOf(this);
     }
 
     /**@dev Returns all tokens back to owner */
-    function returnTokensTo(address to) managerOnly {
+    function returnTokensTo(address to) public managerOnly {
         token.transfer(to, token.balanceOf(this));
     }
 }

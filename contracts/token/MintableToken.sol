@@ -12,21 +12,21 @@ contract MintableToken is Manageable, ERC20StandardToken {
 
     /**@dev Allows execution by minters only */
     modifier minterOnly {
-        assert(minters[msg.sender]);
+        require(minters[msg.sender]);
         _;
     }
 
-    function MintableToken() {
+    function MintableToken() public {
         minters[owner] = true;        
     }
 
     /**@dev Allow or disallow given address to mint new tokens */
-    function setMinter(address minter, bool state) managerOnly {
+    function setMinter(address minter, bool state) public managerOnly {
         minters[minter] = state;
     }
 
     /**@dev Creates given amount of tokens*/
-    function mint(address beneficiary, uint256 amount) minterOnly {
+    function mint(address beneficiary, uint256 amount) public minterOnly {
         // balances[beneficiary] += amount;
         // tokensIssued += amount;
 

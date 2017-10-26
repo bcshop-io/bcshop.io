@@ -41,34 +41,35 @@ contract BonusTokenFund is IBonusTokenFund, ValueTokenAgent, ReturnTokenAgent, T
         FloatingSupplyToken _bonusToken, 
         uint16 _tokenEtherRate, 
         uint256 _bonusTokenPrice) 
-        ValueTokenAgent(_realToken) 
+        public
+        ValueTokenAgent(_realToken)
     {
         bonusToken = _bonusToken;
         tokenEtherRate = _tokenEtherRate;
         bonusTokenPrice = _realToken.getRealTokenAmount(_bonusTokenPrice);
     }
 
-    function() payable {}
+    function() payable public {}
 
     /**@dev IBonusTokenFund override. Allows to send ether to specified address in exchange for bonusToken */
-    function allowCompensationFor(address to) managerOnly {
+    function allowCompensationFor(address to) public managerOnly {
         allowedEtherReceiver[to] = true;
     }
 
     /**@dev Sets new bonustoken/ether exchange rate */
-    function setExchangeRate(uint16 newTokenEtherRate) managerOnly {
+    function setExchangeRate(uint16 newTokenEtherRate) public managerOnly {
         tokenEtherRate = newTokenEtherRate;
     }
 
     /**@dev ReturnTokenAgent override */
-    function returnToken(address from, uint256 amountReturned) returnableTokenOnly {                
+    function returnToken(address from, uint256 amountReturned) public returnableTokenOnly {
         //bcs token is exchanged for bcb tokens
         if (msg.sender == address(valueToken)) {
             require(amountReturned >= bonusTokenPrice);
             issueBonusTokens(from); //issue bonus tokens
 
             //return the remainder
-            if (amountReturned >= bonusTokenPrice) {
+            if (amountReturned > bonusTokenPrice) {
                 valueToken.transfer(from, amountReturned - bonusTokenPrice); 
             }
 
@@ -81,7 +82,7 @@ contract BonusTokenFund is IBonusTokenFund, ValueTokenAgent, ReturnTokenAgent, T
     }
 
     /**@dev ValueTokenAgent override */
-    function tokenIsBeingTransferred(address from, address to, uint256 amount) valueTokenOnly {
+    function tokenIsBeingTransferred(address from, address to, uint256 amount) public valueTokenOnly {
         require(from != to);        
         
         updateHolder(from);
@@ -89,12 +90,12 @@ contract BonusTokenFund is IBonusTokenFund, ValueTokenAgent, ReturnTokenAgent, T
     }
 
     /**@dev ValueTokenAgent override */
-    function tokenChanged(address holder, uint256 amount) valueTokenOnly {
+    function tokenChanged(address holder, uint256 amount) public valueTokenOnly {
         updateHolder(holder);
     }
 
     /**@dev how many tokens can be issued to specific account */
-    function bonusTokensToIssue(address holder) constant returns (uint256) {
+    function bonusTokensToIssue(address holder) public constant returns (uint256) {
         return safeAdd(bonusTokenPoints[holder], tokensSinceLastUpdate(holder));
     }    
 
@@ -103,7 +104,7 @@ contract BonusTokenFund is IBonusTokenFund, ValueTokenAgent, ReturnTokenAgent, T
     //
 
     /**@dev Returns amount of tokens generated for specific account since last update*/
-    function tokensSinceLastUpdate(address holder) internal  constant returns (uint256) {
+    function tokensSinceLastUpdate(address holder) internal constant returns (uint256) {
         return tokenEtherRate * (totalTokenPoints() - lastClaimedPoints[holder]) * valueToken.balanceOf(holder) / MULTIPLIER; 
     }    
 

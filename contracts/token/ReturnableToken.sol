@@ -10,15 +10,15 @@ contract ReturnableToken is Manageable, ERC20StandardToken {
     /**@dev List of return agents */
     mapping (address => bool) public returnAgents;
 
-    function ReturnableToken() {}    
+    function ReturnableToken() public {}    
     
     /**@dev Sets new return agent */
-    function setReturnAgent(ReturnTokenAgent agent) managerOnly {
+    function setReturnAgent(ReturnTokenAgent agent) public managerOnly {
         returnAgents[address(agent)] = true;
     }
 
     /**@dev Removes return agent from list */
-    function removeReturnAgent(ReturnTokenAgent agent) managerOnly {
+    function removeReturnAgent(ReturnTokenAgent agent) public managerOnly {
         returnAgents[address(agent)] = false;
     }
 

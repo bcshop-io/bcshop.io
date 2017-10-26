@@ -100,6 +100,15 @@ contract("BCSCrowdsale. Tests too early and too late investments.", function(acc
     it("advance time ahead to start and check state", async function() {
         await utils.timeTravelAndMine(101);
         assert.equal((await sale.getState.call()).toNumber(), 2, "Sale state should be 'Active'");
+    })    
+
+    it("invest 0, should fail", async function() {
+        try{
+            await web3.eth.sendTransaction({from:investor1, to:sale.address, value: 0, gas:InvestGasLimit});
+        } catch(e) {
+            return true;
+        }
+        assert.isTrue(false, "Investment with 0Eth shoudl fail");
     })
 
     it("invest", async function() {
@@ -230,6 +239,14 @@ contract("BCSCrowdsale. Goal not reached", function(accounts) {
         await utils.timeTravelAndMine(DurationHours * 86400);
         assert.equal((await sale.getState.call()).toNumber(), 4, "State should be failed");
     })
+
+    it("investors refund", async function() {
+        assert.equal(await sale.investedFrom.call(investor1), OneEther, "Investor1 should be able to refund 1E");
+        await sale.refund({from: investor1});
+        await sale.refund({from: investor2});
+        assert.equal(await sale.investedFrom.call(investor1), 0, "Investor1 should be able to refund 0E");
+        assert.equal(await web3.eth.getBalance(sale.address), 0, "Sale balance should be 0");
+    })
 })
 
 contract("BCSCrowdsale. Goal reached. Withdraw throws. Make failed. Investors withdraw", async function(accounts) {
@@ -253,13 +270,22 @@ contract("BCSCrowdsale. Goal reached. Withdraw throws. Make failed. Investors wi
         await sale.invest({from: investor2, value: investment2});
         assert.equal(await _TB(investor2), await _RT(300), "Investor2 should get 300 tokens");
     })
+    
+    it("try to refund right after invest, should fail", async function() {
+        try {
+            await sale.refund({from: investor1});
+        } catch(e) {
+            return true;
+        }
+        assert.isTrue(false, "Should fail to refund");
+    })
 
     it("advance time to the end", async function() {
         await utils.timeTravelAndMine(DurationHours * 86400);
         assert.equal((await sale.getState.call()).toNumber(), 3, "State should be finished");
     })
 
-    it("try to refund", async function() {
+    it("try to refund after sale end, should fail", async function() {
         try {
             await sale.refund({from: investor1});
         } catch(e) {
@@ -317,7 +343,7 @@ contract("BCSCrowdsale. Withdraw throws. Change beneficiary", async function(acc
         await utils.timeTravelAndMine(DurationHours * 86400);
         assert.equal((await sale.getState.call()).toNumber(), 3, "State should be finished");
     })
-
+    
     it("try to withdraw", async function() {
         try {
             await sale.transferToBeneficiary();
@@ -327,6 +353,15 @@ contract("BCSCrowdsale. Withdraw throws. Change beneficiary", async function(acc
 
         assert.isTrue(false, "Should fail to withdraw");
     })    
+
+    it("try to change beneficiary as not a manager, should fail", async function() {
+        try {
+            await sale.changeBeneficiary(beneficiary, {from: investor1});
+        } catch(e) {
+            return true;
+        }
+        assert.isTrue(false, "Beneficiary change should be failed");
+    })
 
     it("change beneficiary and withdraw", async function() {
         beneficiary = accounts[1];

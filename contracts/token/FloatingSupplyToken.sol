@@ -8,7 +8,7 @@ contract FloatingSupplyToken is MintableToken, IBurnableToken {
     
     event Burn(address sender, uint256 value);
 
-    function burn(uint256 amount) {
+    function burn(uint256 amount) public {
         balances[msg.sender] = safeSub(balances[msg.sender], amount);
         tokensIssued = safeSub(tokensIssued, amount);
  

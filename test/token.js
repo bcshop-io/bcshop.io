@@ -64,6 +64,7 @@ contract("BCSToken", function(accounts) {
         await token.transferFrom(user2, owner, await _RT(10), {from:user1});
         assert.equal(await _TB(owner), await _RT(510), "Owner should get 10 tokens");        
         assert.equal(await token.allowance.call(user2, user1), await _RT(40), "Allowance should be 40");
+        assert.equal(await _TB(user2), await _RT(290), "User2 should get 290 tokens");        
     })
 
     it("try transfer from too much, should fail", async function() {
@@ -73,6 +74,23 @@ contract("BCSToken", function(accounts) {
             return true;
         }
         assert.isTrue(false, "TransferFrom should fail");
+    })
+
+    it("user2 tries to burn, should fail", async function() {
+        var tb = await _RT(1);
+        assert.isAbove(await _TB(user2), tb, "User2 should get at least 1 tokens"); 
+        try {
+            await token.burn(tb, {from:user2});
+        } catch (e) {
+            return true;
+        }
+        assert.isTrue(false, "burn should fail");
+    })
+
+    it("owner burns tokens", async function() {
+        var tb = await _RT(10);        
+        await token.burn(tb, {from:owner});
+        assert.equal(await _TB(owner), await _RT(500), "Invalid owner balance, should be 500 tokens");
     })
 })
 

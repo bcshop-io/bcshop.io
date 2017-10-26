@@ -1,20 +1,21 @@
 pragma solidity ^0.4.10;
 
+import "./IOwned.sol";
 
-contract Owned {
+contract Owned is IOwned {
     address public owner;        
 
-    function Owned() {
+    function Owned() public {
         owner = msg.sender;
     }
 
     // allows execution by the owner only
     modifier ownerOnly {
-        assert(msg.sender == owner);
+        require(msg.sender == owner);
         _;
     }
 
-    /**@dev allows transferring the contract ownership. The new owner must accept the transfer */
+    /**@dev allows transferring the contract ownership. */
     function transferOwnership(address _newOwner) public ownerOnly {
         require(_newOwner != owner);
         owner = _newOwner;

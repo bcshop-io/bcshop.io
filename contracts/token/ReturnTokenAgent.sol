@@ -15,15 +15,15 @@ contract ReturnTokenAgent is Manageable {
     modifier returnableTokenOnly {require(returnableTokens[msg.sender]); _;}
 
     /**@dev Executes when tokens are transferred to this */
-    function returnToken(address from, uint256 amountReturned);
+    function returnToken(address from, uint256 amountReturned)  public;
 
     /**@dev Sets token that can call returnToken method */
-    function setReturnableToken(ReturnableToken token) managerOnly {
+    function setReturnableToken(ReturnableToken token) public managerOnly {
         returnableTokens[address(token)] = true;
     }
 
     /**@dev Removes token that can call returnToken method */
-    function removeReturnableToken(ReturnableToken token) managerOnly {
+    function removeReturnableToken(ReturnableToken token) public managerOnly {
         returnableTokens[address(token)] = false;
     }
 }

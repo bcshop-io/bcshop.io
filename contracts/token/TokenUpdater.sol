@@ -16,13 +16,13 @@ contract TokenUpdater is TokenHolder, SafeMath {
     IERC20Token public oldToken;
     IERC20Token public newToken;
 
-    function TokenUpdater(IERC20Token _oldToken, IERC20Token _newToken) {
+    function TokenUpdater(IERC20Token _oldToken, IERC20Token _newToken) public {
         oldToken = _oldToken;
         newToken = _newToken;
     }
 
     /**@dev Transfers to sender the newToken in amount equal to its balance of oldToken (considering the decimals) */
-    function getUpdatedToken() {
+    function getUpdatedToken() public {
         address holder = msg.sender;
         uint256 amount = oldToken.balanceOf(holder);
         require(claimedTokens[holder] < amount);

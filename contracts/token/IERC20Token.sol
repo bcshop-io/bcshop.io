@@ -10,13 +10,13 @@ contract IERC20Token {
     function symbol() public constant returns (string _symbol) { _symbol; }
     function decimals() public constant returns (uint8 _decimals) { _decimals; }
     
-    function totalSupply() constant returns (uint total) {total;}
-    function balanceOf(address _owner) constant returns (uint balance) {_owner; balance;}    
-    function allowance(address _owner, address _spender) constant returns (uint remaining) {_owner; _spender; remaining;}
+    function totalSupply() public constant returns (uint total) {total;}
+    function balanceOf(address _owner) public constant returns (uint balance) {_owner; balance;}    
+    function allowance(address _owner, address _spender) public constant returns (uint remaining) {_owner; _spender; remaining;}
 
-    function transfer(address _to, uint _value) returns (bool success);
-    function transferFrom(address _from, address _to, uint _value) returns (bool success);
-    function approve(address _spender, uint _value) returns (bool success);
+    function transfer(address _to, uint _value) public returns (bool success);
+    function transferFrom(address _from, address _to, uint _value) public returns (bool success);
+    function approve(address _spender, uint _value) public returns (bool success);
     
 
     event Transfer(address indexed _from, address indexed _to, uint _value);

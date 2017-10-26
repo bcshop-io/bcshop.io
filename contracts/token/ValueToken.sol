@@ -17,10 +17,10 @@ contract ValueToken is Manageable, ERC20StandardToken {
     /**@dev Reserved token amount */
     uint256 public reservedAmount;
 
-    function ValueToken() {}
+    function ValueToken() public {}
 
     /**@dev Sets new value agent */
-    function setValueAgent(ValueTokenAgent newAgent) managerOnly {
+    function setValueAgent(ValueTokenAgent newAgent) public managerOnly {
         valueAgent = newAgent;
     }
 
@@ -46,12 +46,12 @@ contract ValueToken is Manageable, ERC20StandardToken {
     }
 
     /**@dev Returns a token amount that is accounted in the process of dividend calculation */
-    function getValuableTokenAmount() constant returns (uint256) {
+    function getValuableTokenAmount() public constant returns (uint256) {
         return totalSupply() - reservedAmount;
     }
 
     /**@dev Sets specific address to be reserved */
-    function setReserved(address holder, bool state) managerOnly {        
+    function setReserved(address holder, bool state) public managerOnly {        
 
         uint256 holderBalance = balanceOf(holder);
         if (address(valueAgent) != 0x0) {            

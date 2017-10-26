@@ -9,9 +9,9 @@ contract ITokenPool {
     ERC20StandardToken public token;
 
     /**@dev Changes trustee state */
-    function setTrustee(address trustee, bool state);
+    function setTrustee(address trustee, bool state) public;
 
     // these functions aren't abstract since the compiler emits automatically generated getter functions as external
     /**@dev Returns remaining token amount */
-    function getTokenAmount() constant returns (uint256 tokens) {tokens;}
+    function getTokenAmount() public constant returns (uint256 tokens) {tokens;}
 }

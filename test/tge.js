@@ -135,12 +135,21 @@ contract("BCSTgeSale, BCSToken, BCSPreTgeToken, BCSPromoToken", function(account
     it("buy with bonus tokens", async function() {
         
         var btokens1 = await _TB(btoken, binvestor1);
+        assert.equal(await btoken.balanceOf.call(binvestor1), 1, "");
+
         await btoken.transfer(sale.address, btokens1, {from: binvestor1} );
         assert.equal(await _TB(token, binvestor1), await _RT(token, 1), "BInvestor1 should have 1 token");        
+        assert.equal(await token.balanceOf.call(binvestor1), 1000000000000000000, "");
 
         var btokens2 = await _TB(btoken, binvestor2);
+        assert.equal(await btoken.balanceOf.call(binvestor2), 10, "");
+        assert.equal(await token.balanceOf.call(binvestor2), 0, "");
+
         await btoken.transfer(sale.address, btokens2, {from: binvestor2} );
         assert.equal(await _TB(token, binvestor2), await _RT(token, 10), "BInvestor2 should have 10 tokens");
+        
+        assert.equal(await btoken.balanceOf.call(binvestor2), 0, "");
+        assert.equal(await token.balanceOf.call(binvestor2), 10000000000000000000, "");
 
         assert.equal(await _TB(btoken, sale.address), await _RT(btoken, 11), "Sale should have 11 bonus tokens");
     })
@@ -245,5 +254,12 @@ contract("BCSTgeSale, BCSToken, BCSPreTgeToken, BCSPromoToken", function(account
         var diff = newBalance - oldBalance;
         assert.equal(diff, await _RT(token, 23), "23 not bought tokens should be returned to owner");
         assert.equal(await _TB(token, pool.address), 0, "Pool should be empty");
-    }) 
+    })     
+
+    it("burn tokens", async function() {
+        var tb = await _RT(token, 24);
+        assert.equal(await _TB(token, owner), tb, "Invalid owner balance, should be 24 tokens");
+        await token.burn(tb);
+        assert.equal(await _TB(token, owner), 0, "Invalid owner balance, should be 0 tokens");
+    })
 })

@@ -1,218 +1,158 @@
 pragma solidity ^0.4.10;
 
-import '../common/Manageable.sol';
+import './IProductEngine.sol';
 import './VendorBase.sol';
+import '../common/Owned.sol';
 import '../common/ReentryProtected.sol';
-import '../common/SafeMath.sol';
+import '../upgrade/LibDispatcher.sol';
+import '../common/Versioned.sol';
+
+/* 
+IProductEngine Library Dispatcher's storage that initially stores return values 
+for IProductEngines functions 
+*/
+contract ProductDispatcherStorage is LibDispatcherStorage {
+
+    function ProductDispatcherStorage(address newLib) public
+        LibDispatcherStorage(newLib) {
+
+        //addFunction("getTotalPurchases(IProductEngine.ProductData storage)", 4);
+        //addFunction("getPurchase(IProductEngine.ProductData storage, uint32)", 9);
+        addFunction("calculatePaymentDetails(IProductEngine.ProductData storage,uint256,bool)", 96);
+    }
+}
 
 //Vendor's product for sale
 //TODO add return money function
-contract Product is Manageable, ReentryProtected, SafeMath {
-        
-    ///Product id
-    uint256 public id;
-    ///Name of the product
-    string public name;     
-    ///Price of one product unit
-    uint256 public price;
+//TODO add ratings
+contract Product is Owned, Versioned {
+    using IProductEngine for IProductEngine.ProductData;
 
-    ///True if product has limited quantity  
-    bool public isLimited;
-    ///Max quantity of limited product units
-    uint256 public maxUnits;
-    ///True if product can be sold by fractions, like 2.5 units
-    bool public allowFractions;
-    
-    ///True if it is possible to buy a product
-    bool public isActive;  
-    ///From this point a product is buyable (linux timestamp)
-    uint256 public startTime;
-    ///After this point the product is unbuyable (linux timestamp)
-    uint256 public endTime;
+    IProductEngine.ProductData public engine;
 
-    ///How many units already sold
-    uint256 public soldUnits;
-    ///List of overpays to withdraw
-    mapping (address => uint256) public pendingWithdrawals; 
-    ///Array of purchase information
-    Purchase[] public purchases;
-
-    //only vendor's owner can call some methods
-    modifier vendorOnly {require(VendorBase(owner).owner() == msg.sender); _;}
-
-    //Triggers when all payments are successfully done
-    event ProductBought(address buyer, uint256 quantity, string clientId);    
-
-    //Purchase information
-    struct Purchase {
-        uint256 id; //purchase id
-        address buyer; //who mad a purchase
-        string clientId; //product-specific client id
-        uint256 price; //unit price at the moment of purchase
-        uint256 paidUnits; //how many units
-        bool delivered; //true if Product was delivered
-    }
+    //event FunctionCalled(bytes4 sig, uint32 size, address dest);
+    //event ProductBought(address buyer, uint32 unitsToBuy, string clientId);
+    event ProductBoughtEx(uint256 indexed id, address indexed buyer, string clientId, uint256 price, uint32 paidUnits);
+    event Created(string name, uint32 version, uint256 price, uint32 maxUnits);
 
     function Product(
-        uint256 productId,
+        //uint32 productId,
         string productName,
-        uint256 unitPriceInWei, 
-        bool isProductlimited, 
-        uint256 maxProductUnits, 
-        bool allowProductFractions,
-        uint256 purchaseStartTime,
-        uint256 purchaseEndTime
-    ) {
-        require(purchaseStartTime <= purchaseEndTime);
-        
-        id = productId;
-        name = productName;
-        soldUnits = 0;        
-        price = unitPriceInWei * 1 wei;
-        isLimited = isProductlimited;
-        maxUnits = maxProductUnits;
-        allowFractions = allowProductFractions;
-        isActive = true;
-        startTime = purchaseStartTime;
-        endTime = purchaseEndTime;
+        uint256 unitPriceInWei,         
+        uint32 maxProductUnits 
+        // bool allowProductFractions,
+        // uint256 purchaseStartTime,
+        // uint256 purchaseEndTime
+    ) public {
+        //require(purchaseStartTime <= purchaseEndTime);
+
+        engine.owner = owner;
+        //engine.id = productId;
+        engine.name = productName;
+        engine.soldUnits = 0;        
+        engine.price = unitPriceInWei * 1 wei;       
+        engine.maxUnits = maxProductUnits;
+        //engine.allowFractions = allowProductFractions;
+        engine.isActive = true;
+        //engine.startTime = purchaseStartTime;
+        //engine.endTime = purchaseEndTime;        
+        version = 1;
+        Created(productName, version, unitPriceInWei, maxProductUnits);
+    }
+    
+    function() public payable {}
+
+    /**@dev 
+    Returns total amount of purchase transactions */
+    function getTotalPurchases() public constant returns (uint256) {
+        return uint256(engine.purchases.length);
     }
 
-    /**@dev Allows to receive ether, for example from BonusTokenFund */
-    function() payable {}
-
-    /**@dev Total amount of purchase transactions */
-    function getTotalPurchases() constant returns (uint256) {
-        return purchases.length;
+    /**@dev 
+    Returns information about purchase with given index */
+    function getPurchase(uint32 index) 
+        public
+        constant 
+        returns(uint32 id, address buyer, string clientId, uint256 price, uint32 paidUnits, bool delivered, bool badRating) 
+    {
+        return (
+            engine.purchases[index].id,
+            engine.purchases[index].buyer,
+            engine.purchases[index].clientId,
+            engine.purchases[index].price,   
+            engine.purchases[index].paidUnits,     
+            engine.purchases[index].delivered,
+            engine.purchases[index].badRating);
     }
 
-    /**@dev Returns information about purchase with given index */
-    function getPurchase(uint256 index) constant returns(uint256 pid, string clientId, uint256 paidUnits, bool delivered) {
-        return (purchases[index].id, purchases[index].clientId, purchases[index].paidUnits, purchases[index].delivered);
+    /**@dev 
+    Returns purchase/rating structure index */
+    function getUserRatingIndex(address user)
+        public
+        constant 
+        returns (uint256)
+    {
+        return engine.userRating[user];
     }
 
-    /**@dev Buy product. Send ether with this function in amount equal to desirable product quantity total price
-     * clientId - Buyer's product-specific information. 
-     * acceptLessUnits - 'true' if buyer doesn't care of buying the exact amount of limited products.
-     If N units left and buyer sends payment for N+1 units then settings this flag to 'true' will result in
-     buying N units, while 'false' will simply decline transaction 
-     * currentPrice - current product price as shown in 'price' property. 
-     Used for security reasons to compare actual price with the price at the moment of transaction. 
-     If they are not equal, transaction is declined  */
-    function buy(string clientId, bool acceptLessUnits, uint256 currentPrice) 
+
+    /**@dev 
+    Returns pending withdrawal of given buyer */
+    function getPendingWithdrawal(address buyer) public constant returns(uint256) {
+        return engine.pendingWithdrawals[buyer];
+    }    
+
+    /**@dev 
+    Buy product. */
+    function buy(string clientId, bool acceptLessUnits, uint256 currentPrice)
+        public 
     /* preventReentry */
         payable 
     {
-        //check for active flag and valid price
-        require(isActive && currentPrice == price);        
-
-        //check time limit        
-        require((startTime == 0 || now > startTime) && (endTime == 0 || now < endTime));        
-
-        var (unitsToBuy, etherToPay, etherToReturn) = calculatePaymentDetails(msg.value, acceptLessUnits);
-
-        //store overpay to withdraw later
-        if (etherToReturn > 0) {
-            pendingWithdrawals[msg.sender] = safeAdd(pendingWithdrawals[msg.sender], etherToReturn);
-        }
-
-        //check if there is enough units to buy
-        require(unitsToBuy > 0);
-
-        //how much to send to both provider and vendor
-        VendorBase vendorInfo = VendorBase(owner);
-        uint256 etherToProvider;
-        uint256 etherToVendor;
-        if(etherToPay > 0) {
-            etherToProvider = safeMult(etherToPay, vendorInfo.providerFeePromille()) / 1000;        
-            etherToVendor = safeSub(etherToPay, etherToProvider);
-        } else {
-            etherToProvider = 0;
-            etherToVendor = 0;
-        }
-     
-        createPurchase(clientId, unitsToBuy);
-
-        soldUnits = safeAdd(soldUnits, unitsToBuy);
-        
-        vendorInfo.provider().transfer(etherToProvider);
-        /* Use 'call' here instead of transfer is intentional. That way we provide all the gas with call. 
-         If there is an error then the vendor just won't receive any ether and reimplement its fallback function */
-        //assert(vendorInfo.vendor().call.value(etherToVendor)());
-        vendorInfo.vendor().transfer(etherToVendor);
-        ProductBought(msg.sender, unitsToBuy, clientId);
+        engine.buy(clientId, acceptLessUnits, currentPrice);
     }
 
     /**@dev Call this to return all previous overpays */
-    function withdrawOverpay() {
-        uint amount = pendingWithdrawals[msg.sender];        
-        pendingWithdrawals[msg.sender] = 0;
-
-        if (!msg.sender.send(amount)) {
-            pendingWithdrawals[msg.sender] = amount;
-        }
-    } 
-
-    /**@dev Calculates and returns payment details: how many units are bought, 
-     what part of ether should be paid and what part should be returned to buyer  */
-    function calculatePaymentDetails(uint256 weiAmount, bool acceptLessUnits)         
-        returns(uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
-    {
-        unitsToBuy = safeDiv(weiAmount, price);
-        //if product is limited and it's not enough to buy, check acceptLessUnits flag
-        if (isLimited && safeAdd(soldUnits, unitsToBuy) > maxUnits) {
-            if (acceptLessUnits) {
-                unitsToBuy = safeSub(maxUnits, soldUnits);
-            } else {
-                unitsToBuy = 0; //set to 0 so it will fail in buy() function later
-            }
-        }
-        
-        etherToReturn = safeSub(weiAmount, safeMult(unitsToBuy, price));
-        etherToPay = safeSub(weiAmount, etherToReturn);
-    }
-
-    /**@dev Creates new Purchase record */
-    function createPurchase(string clientId, uint256 paidUnits) 
-        internal 
-    {
-        uint256 pid = purchases.length++;        
-        Purchase p = purchases[pid];
-        p.id = pid;
-        p.buyer = msg.sender;
-        p.clientId = clientId;
-        p.price = price;
-        p.paidUnits = paidUnits;
-        p.delivered = false;             
+    function withdrawOverpay() public {
+        engine.withdrawOverpay();
     }
     
-    /**@dev Mark purchase with given id as delivered */
-    function markAsDelivered(uint256 purchaseId) vendorOnly {                
-        require(purchaseId < purchases.length);
-        require(!purchases[purchaseId].delivered); 
-
-        purchases[purchaseId].delivered = true;
+    /**@dev Returns payment details - how much units can be bought, and how much to pay  */
+    function calculatePaymentDetails(uint256 weiAmount, bool acceptLessUnits)
+        public 
+        constant
+        returns(uint32 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
+    {
+        return engine.calculatePaymentDetails(weiAmount, acceptLessUnits);        
+    }
+    
+    /**@dev Marks purchase as delivered or undelivered */
+    function markAsDelivered(uint32 purchaseId, bool state) public {
+        engine.markAsDelivered(purchaseId, state);
     }
 
     /**@dev Changes parameters of product */
     function setParams(
         string newName, 
-        uint256 newPrice, 
-        bool newIsLimited, 
-        uint256 newMaxUnits,
-        bool newAllowFractions,
-        uint256 newStartTime,
-        uint256 newEndTime,
+        uint256 newPrice,         
+        uint32 newMaxUnits,
+        // bool newAllowFractions,
+        // uint256 newStartTime,
+        // uint256 newEndTime,
         bool newIsActive
     ) 
-        vendorOnly
+        public 
     {
-        name = newName;
-        price = newPrice;
-        isLimited = newIsLimited;
-        maxUnits = newMaxUnits;
-        allowFractions = newAllowFractions;
-        isActive = newIsActive;
-        startTime = newStartTime;
-        endTime = newEndTime;
+        engine.setParams(newName, newPrice, newMaxUnits, /*newAllowFractions, newStartTime, newEndTime,*/ newIsActive);        
+    }
+
+    function changeRating(bool newLikeState) public {
+        engine.changeRating(newLikeState);
+    } 
+
+    /**@dev Owned override */
+    function transferOwnership(address _newOwner) public ownerOnly {
+        super.transferOwnership(_newOwner);
+        engine.owner = owner;
     }
 }

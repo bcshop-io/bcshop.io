@@ -10,13 +10,13 @@ contract Manageable is Owned {
 
     mapping (address => bool) public managers;
 
-    function Manageable() Owned() {
+    function Manageable() public Owned() {
         managers[owner] = true;
     }
 
     /**@dev Allows execution by managers only */
     modifier managerOnly {
-        assert(managers[msg.sender]);
+        require(managers[msg.sender]);
         _;
     }
 
@@ -27,7 +27,7 @@ contract Manageable is Owned {
         managers[msg.sender] = false;
     }
 
-    function setManager(address manager, bool state) ownerOnly {
+    function setManager(address manager, bool state) public ownerOnly {
         managers[manager] = state;
         ManagerSet(manager, state);
     }

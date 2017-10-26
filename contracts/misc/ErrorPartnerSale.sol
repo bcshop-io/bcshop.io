@@ -1,5 +1,9 @@
 pragma solidity ^0.4.10;
 
+contract ErrorPartnerSale {
+    function ErrorPartnerSale() {}
+}
+
 contract PartnerSaleStub {
     function transferToPartner();
 }
