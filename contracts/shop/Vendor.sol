@@ -67,9 +67,4 @@ contract Vendor is VendorBase, Versioned, IVendor {
         name = newName;
     }
 
-    /**@dev IVendor override. Adds product to storage */
-    function addProduct(address product) public factoryOnly {
-        products.push(product);
-        ProductCreated(product);
-    }
 }

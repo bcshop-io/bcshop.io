@@ -46,64 +46,6 @@ library ProductEngine {
     ) 
         public
     {
-        //check for active flag and valid price
-        require(self.isActive && currentPrice == self.price);        
-
-        //check time limit        
-        //require((self.startTime == 0 || now > self.startTime) && (self.endTime == 0 || now < self.endTime));
-
-        //how much units do we buy
-        var (unitsToBuy, etherToPay, etherToReturn) = calculatePaymentDetails(self, msg.value, acceptLessUnits);
-
-        //store overpay to withdraw later
-        if (etherToReturn > 0) {
-            self.pendingWithdrawals[msg.sender] = self.pendingWithdrawals[msg.sender].safeAdd(etherToReturn);
-        }
-
-        //check if there is enough units to buy
-        require(unitsToBuy > 0);
-
-        //how much to send to both provider and vendor
-        VendorBase vendorInfo = VendorBase(self.owner);
-        uint256 etherToProvider;
-        uint256 etherToVendor;
-        if (etherToPay > 0) {
-            etherToProvider = etherToPay.safeMult(vendorInfo.providerFeePromille()) / 1000;        
-            etherToVendor = etherToPay.safeSub(etherToProvider);
-        } else {
-            etherToProvider = 0;
-            etherToVendor = 0;
-        }
-     
-        //createPurchase(self, clientId, uint32(unitsToBuy));
-        //self.purchases.length++;        
-        //if it is the first purchase of msg.sender, write price value so to add to rating        
-        //that way unrated purchases will store price = 0
-        //if (self.userRating[msg.sender] == 0) {
-        //    self.purchases[self.purchases.length - 1].price = self.price;
-        //    self.userRating[msg.sender] = self.purchases.length;
-        //} 
-
-        uint32 pid = uint32(self.purchases.length++);
-        IProductEngine.Purchase storage p = self.purchases[pid];
-        p.id = pid;
-        p.buyer = msg.sender;
-        p.clientId = clientId;
-        p.price = self.price;
-        p.paidUnits = unitsToBuy;
-        p.delivered = false;
-
-        if (self.userRating[msg.sender] == 0) {
-            self.userRating[msg.sender] = pid + 1;
-        }
-
-        self.soldUnits = uint32(self.soldUnits + unitsToBuy);
-        
-        vendorInfo.provider().transfer(etherToProvider);        
-        vendorInfo.vendor().transfer(etherToVendor);
-
-        ProductBoughtEx(self.purchases.length - 1, msg.sender, clientId, self.price, uint32(unitsToBuy));
-        //ProductBought(msg.sender, uint32(unitsToBuy), clientId);
     }
 
     /**@dev 

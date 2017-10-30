@@ -39,12 +39,6 @@ contract VendorManager is IVendorManager, Owned, Versioned {
         return vendorLists[vendorOwner].length;
     }
 
-    /**@dev Adds vendor to storage */
-    function addVendor(address vendorOwner, address vendor) public factoryOnly {
-        vendorLists[vendorOwner].push(vendor);
-        validVendor[vendor] = true;    
-        VendorAdded(vendorOwner, vendor);
-    }
 
     /**@dev sets new vendor/product factory */
     function setFactory(address newFactory, bool state) public ownerOnly {
