@@ -1,73 +1,32 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.18;
 
-import './Product.sol';
-import '../token/MintableToken.sol';
+import "./Product.sol";
+import "../token/MintableToken.sol";
 
-/// Product that contains a token to distribute or sell
-contract TokenProduct is Product {
-
-    uint8 public bronzeRewardTokens;
-    uint8 public silverRewardTokens;
-    uint8 public goldRewardTokens;
-    uint8 public silverRewardDistance; //each x-th investor gets silver reward
-    uint8 public goldRewardDistance; //each x-th investor gets gold reward
-
-    /**@dev List of buyers to prevent multiple purchases */
-    mapping (address => uint256) public buyers;
-
-    /**@dev A token to sell. */
-    MintableToken public token;
+/**@dev Product that mints tokens at the moment of purchase */
+contract TokenProduct is Product {  
     
-    function TokenProduct(
-        MintableToken tokenToSell,
-        uint256 productId,
+    MintableToken token;
+
+    function TokenProduct(        
         string productName,
+        uint256 unitPriceInWei,
         uint256 maxProductUnits,
-        uint256 purchaseStartTime,
-        uint256 purchaseEndTime,
-        uint8 bronzeReward,
-        uint8 silverReward,
-        uint8 goldReward,
-        uint8 silverDistance,
-        uint8 goldDistance)
-        //set base product price to 0 as it doesn't matter
-        Product(productId, productName, 0, true, maxProductUnits, false, purchaseStartTime, purchaseEndTime)
-    {
-        token = tokenToSell;
-        bronzeRewardTokens = bronzeReward;
-        silverRewardTokens = silverReward;
-        goldRewardTokens = goldReward;
-        silverRewardDistance = silverDistance;
-        goldRewardDistance = goldDistance;
+        MintableToken mintableToken
+    ) 
+    Product(productName, unitPriceInWei, maxProductUnits, uint256(10) ** mintableToken.decimals())
+    public {
+        token = mintableToken;
     }
 
-    /**@dev Product override */
-    function calculatePaymentDetails(uint256 weiAmount, bool acceptLessUnits)         
-        returns(uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
-    {
-        etherToReturn = 0;
-        etherToPay = weiAmount;        
-        unitsToBuy = soldUnits < maxUnits ? 1 : 0;
-    }
+    /**@dev 
+    Buy product. */
+    function buy(string clientId, bool acceptLessUnits, uint256 currentPrice) public payable 
+    {        
+        super.buy(clientId, acceptLessUnits, currentPrice);
 
-    /**@dev Product override */
-    function createPurchase(string clientId, uint256 paidUnits) 
-        internal 
-    {
-        require (buyers[msg.sender] == 0); //no multiple purchases;
-
-        super.createPurchase(clientId, paidUnits);
-
-        uint256 tokenAmount = bronzeRewardTokens;
-        if (purchases.length % goldRewardDistance == 0) {
-            tokenAmount = goldRewardTokens;
-        } else if (purchases.length % silverRewardDistance == 0) {
-            tokenAmount = silverRewardTokens;
-        }
-
-        tokenAmount = token.getRealTokenAmount(tokenAmount); //considering decimals
-
-        token.mint(msg.sender, tokenAmount);
-        buyers[msg.sender] = safeAdd(buyers[msg.sender], tokenAmount);        
+        //check last purchase for paidUnits info
+        IProductEngine.Purchase storage lastPurchase = engine.purchases[engine.purchases.length - 1];
+        token.mint(msg.sender, lastPurchase.paidUnits);
     }
 }
