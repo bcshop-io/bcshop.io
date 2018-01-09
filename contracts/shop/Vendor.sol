@@ -10,10 +10,9 @@ import "../common/Versioned.sol";
 contract Vendor is VendorBase, Versioned, IVendor {
 
     event ProductCreated(address indexed product);
-    event Created(string name, uint32 version, uint256 fee, address vendorWallet);
-
-    /**@dev Manager for vendors */
-    IVendorManager vendorManager;
+    event Created(string name, uint32 version, uint256 fee, address vendorWallet); 
+    //event FeeChanged(uint256 fee);
+    event ParametersChanged(address wallet, string name);
 
     /**@dev List of all created products
     We can save around 50k gas on creation of vendor and product by deleting this array and using 'dumb contracts' instead */
@@ -32,20 +31,20 @@ contract Vendor is VendorBase, Versioned, IVendor {
         IVendorManager manager, 
         string vendorName, 
         address vendorWallet, 
-        address serviceProvider, 
+        // address serviceProvider, 
         uint256 feeInPromille
     ) 
         public
     {
         require(address(manager) != 0x0);
         require(vendorWallet != 0x0);
-        require(serviceProvider != 0x0);
+        //require(serviceProvider != 0x0);
         require(feeInPromille <= 1000);
 
         name = vendorName;
         vendorManager = manager;
         vendor = vendorWallet;
-        provider = serviceProvider;
+        //provider = serviceProvider;
         providerFeePromille = feeInPromille;
         
         version = 1;
@@ -57,14 +56,22 @@ contract Vendor is VendorBase, Versioned, IVendor {
        return uint32(products.length);
     }
 
-    /**@dev Sets new wallet to collect profits from purchases */
-    function setVendorWallet(address newWallet) public ownerOnly {
+    function setParams(address newWallet, string newName) public ownerOnly {
         vendor = newWallet;
-    }
-     
-    /**@dev Sets new name */
-    function setName(string newName) public ownerOnly {
         name = newName;
+        ParametersChanged(vendor, name);
+    } 
+
+    /**@dev IVendor override. Adds product to storage */
+    function addProduct(address product) public factoryOnly {
+        products.push(product);
+        ProductCreated(product);
     }
 
+    /**@dev Sets new fee, only owner of vendor manager should call it */
+    // function setFee(uint256 newFeePromille) {
+    //     require(msg.sender == vendorManager.owner());
+    //     providerFeePromille = newFeePromille;
+    //     FeeChanged(providerFeePromille);
+    // }
 }
