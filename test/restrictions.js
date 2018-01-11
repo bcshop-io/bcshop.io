@@ -158,9 +158,19 @@ contract("ParticipantInvestRestrictions: Reserve/unreserve for more than cap. ",
     it("reserve for investor2 1000 tokens, results in 600 tokens (not to exceed cap)", async function() {
         await restrictions.reserveFor(investor2, floorEther*5);
         assert.equal((await restrictions.tokensReserved.call()).toNumber(), 1000, "1000 tokens should be reserved");
-        assert.equal(await restrictions.reservedInvestors.call(investor2), 600, "400 tokens should be reserved for investor1");
+        assert.equal(await restrictions.reservedInvestors.call(investor2), 600, "600 tokens should be reserved for investor2");
         assert.equal((await restrictions.knownReserved.call()).toNumber(), 2, "2 investors should be reseved");
     })
+
+    it("reserve for investor3, should fail as there are no tokens to reserve", async function() {
+        try {
+            await restrictions.reserveFor(investor3, floorEther);
+        } catch (e) {
+            return true;
+        }
+        assert.isTrue(false, "Reserve should fail");        
+    })
+
 
     it("unreserve for investor2, should have 400 tokens for investor1 reserved still", async function() {
         await restrictions.unreserveFor(investor2);
@@ -175,35 +185,6 @@ contract("ParticipantInvestRestrictions: Reserve/unreserve for more than cap. ",
         assert.equal(await restrictions.reservedInvestors.call(investor1), 0, "0 tokens should be reserved for investor1");
         assert.equal(await restrictions.reservedInvestors.call(investor2), 0, "0 tokens should be reserved for investor2");
     })
-
-
-    // DOESN't WORK
-    // it("check investor1 investment, should be 0 tokens to buy and rest as overpay", async function() {
-    //     assert.isTrue(await crowdsale.canInvest.call(investor1, floorEther));
-    //     var res = await crowdsale.howManyTokensForEther.call(floorEther);
-    //     assert.equal(res[0].toNumber(), 0, "Should be 0 tokens avaialble for sale");
-    //     assert.equal(res[1].toNumber(), floorEther, "Should have all the amount invested as overpay");        
-    // })
-
-    // it("investor1 tries to invest, fail as there are 0 tokens to get", async function() {
-    //     try {
-    //         await crowdsale.invest({from:investor1, value:floorEther});
-    //     } catch(e) {
-    //         return true;
-    //     }
-    //     assert.isTrue(false, "Investment should fail");
-    // })
-
-    // it("unreserve 800 tokens", async function() {
-    //     await restrictions.unreserve(1);
-    //     assert.equal((await restrictions.tokensReserved.call()).toNumber(), 600, "600 tokens should be reserved");
-    // })
-
-    // it("invest for 800 tokens - more than cap, should get 400", async function() {
-    //     await crowdsale.invest({from:investor1, value:floorEther*4});
-    //     assert.equal(await token.balanceOf(investor1), 400, "Investor should get only 400 tokens");
-    //     assert.equal(await crowdsale.overpays.call(investor1), floorEther*2, "Should have 2E as overpay");
-    // })    
 })
 
 contract("ParticipantInvestRestrictions: Reserve half of tokens and somebody tries to invest more than other half ", function(accounts){

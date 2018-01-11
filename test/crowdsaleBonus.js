@@ -126,7 +126,7 @@ contract("Crowdsale with variable bonus.", function(accounts) {
         await Prepare(accounts);
         sale = await TgeCrowdsale.new(pool.address, 0, beneficiary, StartTime, DurationHours, 0, TokensForOneEther, 10, steps);
         await pool.setTrustee(sale.address, true);
-        assert.equal(await sale.getCurrentBonusPct.call(), 10, "Current bonus is 10%");
+        assert.equal(await sale.getCurrentBonusPct.call(0), 10, "Current bonus is 10%");
     })
 
     it("check bonus step", async function() {
@@ -138,22 +138,37 @@ contract("Crowdsale with variable bonus.", function(accounts) {
 
     it("advance time to less than one period. bonus still should be 10%", async function() {
         await utils.timeTravelAndMine(60);
-        assert.equal((await sale.getCurrentBonusPct.call()).toNumber(), 10, "1st step: 10%");
+        assert.equal((await sale.getCurrentBonusPct.call(0)).toNumber(), 10, "1st step: 10%");
         await sale.invest({from: investor2, value: OneEther});
         assert.equal(await _TB(investor2), 110, "Should get 110 tokens");
     })
 
     it("advance time to one period. bonus should be 5%", async function() {
         await utils.timeTravelAndMine(oneStepD);
-        assert.equal((await sale.getCurrentBonusPct.call()).toNumber(), 5, "2st step: 5%");        
+        assert.equal((await sale.getCurrentBonusPct.call(0)).toNumber(), 5, "2st step: 5%");        
         await sale.invest({from: investor2, value: OneEther});
         assert.equal(await _TB(investor2), 110 + 105, "Should get 215 tokens");
     })
 
     it("advance time to one period more. bonus should be 0%", async function() {
         await utils.timeTravelAndMine(oneStepD);
-        assert.equal((await sale.getCurrentBonusPct.call()).toNumber(), 0, "3st step: 0%");
+        assert.equal((await sale.getCurrentBonusPct.call(0)).toNumber(), 0, "3st step: 0%");
         await sale.invest({from: investor2, value: OneEther});
         assert.equal(await _TB(investor2), 110 + 105 + 100, "Should get 315 tokens");
+    })
+
+    it("advance time to the end", async function() {
+        await utils.timeTravelAndMine(DurationHours*86400);
+        assert.equal(await sale.getState.call(), 3, "State should be active");
+    })
+
+    it("transfer to beneficiary", async function() {
+        var i1 = await web3.eth.getBalance(beneficiary);
+        await sale.transferToBeneficiary();
+        var b1 = await web3.eth.getBalance(sale.address);
+        var i2 = await web3.eth.getBalance(beneficiary);
+
+        assert.equal(i2.minus(i1).toNumber(), 3 * OneEther, "Beneficiary shuold get 3ETH");
+        assert.equal(await web3.eth.getBalance(sale.address), 0, "Sale should have 0E");
     })
 })

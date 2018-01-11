@@ -182,3 +182,17 @@ contract("BCSPromoToken, TokenVendor, TokenProduct. Time limits", function(accou
         assert.equal(await token.balanceOf.call(investor3), 10, "Investor3 should have 10 token");
     })
 })
+
+contract ("measure gas", function(accounts) {
+    it("do it", async function() {
+        await Prepare(accounts);
+        var tx = await token.mint(accounts[0], 1);
+        console.log(tx.receipt.gasUsed);
+
+        await token.mint(accounts[0], 2);
+        console.log(tx.receipt.gasUsed);
+
+        await token.mint(accounts[1], 1);
+        console.log(tx.receipt.gasUsed);
+    })
+})

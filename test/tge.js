@@ -167,7 +167,7 @@ contract("BCSTgeSale, BCSToken, BCSPreTgeToken, BCSPromoToken", function(account
     })
 
     it("buy with ether, bonus", async function() {
-        var curBonus = (await sale.getCurrentBonusPct.call()).toNumber();
+        var curBonus = (await sale.getCurrentBonusPct.call(0)).toNumber();
         
         assert.equal(curBonus, 15, "Current bonus should be 15%");
         assert.equal((await sale.tokensLeft.call()).toNumber(), await _RT(token, TokenCap-PTokenCap-11), "1988 tokens shoul be available for Ether sale");
@@ -184,14 +184,14 @@ contract("BCSTgeSale, BCSToken, BCSPreTgeToken, BCSPromoToken", function(account
     it("lower bonus to next", async function() {
         await utils.timeTravelAndMine(3600 + 10);
         
-        var curBonus = (await sale.getCurrentBonusPct.call()).toNumber();        
+        var curBonus = (await sale.getCurrentBonusPct.call(0)).toNumber();        
         assert.equal(curBonus, 10, "Current bonus should be 10%");
     })
 
     it("lower bonus to zero", async function() {
         await utils.timeTravelAndMine(3600 * 2 + 10);
 
-        var curBonus = (await sale.getCurrentBonusPct.call()).toNumber();        
+        var curBonus = (await sale.getCurrentBonusPct.call(0)).toNumber();        
         assert.equal(curBonus, 0, "Current bonus should be 0%");
     })
 

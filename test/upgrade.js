@@ -220,100 +220,108 @@ contract ("Link to dispatcher", function(accounts) {
         var res = await libUser.getVar1.call();        
         assert.equal(res.toNumber(), 400, "GetVar1 should equal 200*2");
     })
+
+    // it("try to change to library with extended storage", async function() {
+    //     var LibraryEx = artifacts.require("ExampleLibEx");
+    //     var libraryEx = await LibraryEx.new();
+    //     await dispatcherStorage.replace(libraryEx.address);
+
+    //     await libUser.setVars(5, 12);
+    // })
 })
 
 
 
-contract("create from another contract", function(accounts) {
-    var factory;    
-    var lib;
-    var lib2;
-    var libUser;
-    var dispatcher;
-    var dispatcherStorage;
+// contract("create from another contract", function(accounts) {
+//     var factory;    
+//     var lib;
+//     var lib2;
+//     var libUser;
+//     var dispatcher;
+//     var dispatcherStorage;
         
-    it("create libraries and storage", async function() {
-        lib = await ExampleLib.new();        
-        dispatcherStorage = await LibDispatcherStorage.new(lib.address);
-        LibDispatcher.unlinked_binary = LibDispatcher.unlinked_binary.replace(
-            '1111222233334444555566667777888899990000',
-            dispatcherStorage.address.slice(2));
+//     it("create libraries and storage", async function() {
+//         lib = await ExampleLib.new();        
+//         dispatcherStorage = await LibDispatcherStorage.new(lib.address);
+//         LibDispatcher.unlinked_binary = LibDispatcher.unlinked_binary.replace(
+//             '1111222233334444555566667777888899990000',
+//             dispatcherStorage.address.slice(2));
 
-        dispatcher = await LibDispatcher.new();
+//         dispatcher = await LibDispatcher.new();
 
-        Factory.link('IExampleLib', dispatcher.address);
-        factory = await Factory.new();
+//         Factory.link('IExampleLib', dispatcher.address);
+//         factory = await Factory.new();
 
-        var tx = await factory.createNewUser();        
-        libUser = ExampleLibraryUser.at(await factory.users.call(0));
+//         var tx = await factory.createNewUser();        
+//         libUser = ExampleLibraryUser.at(await factory.users.call(0));
 
-        var tx = await dispatcherStorage.addFunction("getVar1(IExampleLib.Data storage)", 32);        
-        //console.log(tx.logs[0].args);
-        tx = await dispatcherStorage.addFunction("getVars(IExampleLib.Data storage,uint256,bool)", 64); // was 64                 
-        //tx = await dispatcherStorage.addFunction("getVars(IExampleLib.Data storage)", 96); // was 64         
-        tx = await dispatcherStorage.addFunction("getAllVars(IExampleLib.Data storage)", 128);
-        //console.log(tx.logs[0].args);
-        tx = await dispatcherStorage.addFunction("getBool(IExampleLib.Data storage)", 32);
-        //console.log(tx.logs[0].args);
-        tx = await dispatcherStorage.addFunction("getBoolAsInt(IExampleLib.Data storage)", 32);        
-        //console.log(tx.logs[0].args);        
-        tx = await dispatcherStorage.addFunction("getBytes(IExampleLib.Data storage)", 32);
+//         var tx = await dispatcherStorage.addFunction("getVar1(IExampleLib.Data storage)", 32);        
+//         //console.log(tx.logs[0].args);
+//         tx = await dispatcherStorage.addFunction("getVars(IExampleLib.Data storage,uint256,bool)", 64); // was 64                 
+//         //tx = await dispatcherStorage.addFunction("getVars(IExampleLib.Data storage)", 96); // was 64         
+//         tx = await dispatcherStorage.addFunction("getAllVars(IExampleLib.Data storage)", 128);
+//         //console.log(tx.logs[0].args);
+//         tx = await dispatcherStorage.addFunction("getBool(IExampleLib.Data storage)", 32);
+//         //console.log(tx.logs[0].args);
+//         tx = await dispatcherStorage.addFunction("getBoolAsInt(IExampleLib.Data storage)", 32);        
+//         //console.log(tx.logs[0].args);        
+//         tx = await dispatcherStorage.addFunction("getBytes(IExampleLib.Data storage)", 32);
 
-        assert.equal((await libUser.getVar1.call()).toNumber(), 0, "Var1 should equal 0");
-    });
+//         assert.equal((await libUser.getVar1.call()).toNumber(), 0, "Var1 should equal 0");
+//     });
     
-    it("change  to (10, 20)", async function() {
-        await libUser.setVars(10, 20);
-        var res = await libUser.getVars.call(2, true);
-        assert.equal(res[0].toNumber(), 10, "Var1 should equal 10");
-        assert.equal(res[1].toNumber(), 20, "Var2 should equal 20");
-    })
+//     it("change  to (10, 20)", async function() {
+//         await libUser.setVars(10, 20);
+//         var res = await libUser.getVars.call(2, true);
+//         assert.equal(res[0].toNumber(), 10, "Var1 should equal 10");
+//         assert.equal(res[1].toNumber(), 20, "Var2 should equal 20");
+//     })
 
-    it("call payable function", async function() {
-        await web3.eth.sendTransaction({from:accounts[0], to:libUser.address, value: 10000});
-        assert.equal(await libUser.getVar1.call(), 10000, "Var1 should equal to sent value: 10000");
-    })
+//     it("call payable function", async function() {
+//         await web3.eth.sendTransaction({from:accounts[0], to:libUser.address, value: 10000});
+//         assert.equal(await libUser.getVar1.call(), 10000, "Var1 should equal to sent value: 10000");
+//     })
     
-    it("create new library", async function() {
-        lib2 = await ExampleLib2.new();
-        await dispatcherStorage.replace(lib2.address);
+//     it("create new library", async function() {
+//         lib2 = await ExampleLib2.new();
+//         await dispatcherStorage.replace(lib2.address);
 
-        var data = await libUser.data.call();
-        assert.equal(data[0].toNumber(), 10000, "Var1 should equal 10000");
-        assert.equal(data[1].toNumber(), 20, "Var2 should equal 20");
+//         var data = await libUser.data.call();
+//         assert.equal(data[0].toNumber(), 10000, "Var1 should equal 10000");
+//         assert.equal(data[1].toNumber(), 20, "Var2 should equal 20");
 
-        var res = await libUser.getVars.call(2, true);
-        assert.equal(res[0].toNumber(), 20000, "GetVar1 should equal 10000*2");
-        assert.equal(res[1].toNumber(), 40, "GetVar2 should equal 20*2");
-    })
+//         var res = await libUser.getVars.call(2, true);
+//         assert.equal(res[0].toNumber(), 20000, "GetVar1 should equal 10000*2");
+//         assert.equal(res[1].toNumber(), 40, "GetVar2 should equal 20*2");
+//     })
 
-    it("new library. change  to (50, 60)", async function() {
-        await libUser.setVars(50, 60);
+//     it("new library. change  to (50, 60)", async function() {
+//         await libUser.setVars(50, 60);
         
-        var data = await libUser.data.call();
-        assert.equal(data[0].toNumber(), 51, "Var1 should equal 51");
-        assert.equal(data[1].toNumber(), 61, "Var2 should equal 61");
+//         var data = await libUser.data.call();
+//         assert.equal(data[0].toNumber(), 51, "Var1 should equal 51");
+//         assert.equal(data[1].toNumber(), 61, "Var2 should equal 61");
 
-        var res = await libUser.getVars.call(2, true);
-        assert.equal(res[0].toNumber(), 102, "GetVar1 should equal 51*2");
-        assert.equal(res[1].toNumber(), 122, "GetVar2 should equal 61*2");
-    })    
-});
+//         var res = await libUser.getVars.call(2, true);
+//         assert.equal(res[0].toNumber(), 102, "GetVar1 should equal 51*2");
+//         assert.equal(res[1].toNumber(), 122, "GetVar2 should equal 61*2");
+//     })    
+// });
 
 
-contract("Link library with another library", function(accounts) {
-    var safeMathLib;
-    var safeMathUserLib;
-    var user;
+// contract("Link library with another library", function(accounts) {
+//     var safeMathLib;
+//     var safeMathUserLib;
+//     var user;
 
-    it("run", async function() {
-        safeMathLib = await SafeMathLib.new();
-        safeMathUserLib = await SafeMathUserLib.new();
+//     it("run", async function() {
+//         safeMathLib = await SafeMathLib.new();
+//         safeMathUserLib = await SafeMathUserLib.new();
 
-        ExampleSafeMathUser.link('SafeMathUserLib', safeMathUserLib.address);
-        user = await ExampleSafeMathUser.new();
+//         ExampleSafeMathUser.link('SafeMathUserLib', safeMathUserLib.address);
+//         user = await ExampleSafeMathUser.new();
 
-        await user.setValues(1, 3);
-       // console.log(await user.getSum.call());
-    })
-})
+//         await user.setValues(1, 3);
+//        // console.log(await user.getSum.call());
+//     })
+// })

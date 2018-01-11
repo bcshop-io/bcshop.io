@@ -103,6 +103,18 @@ contract("BCSCrowdsale. Lock token transfer for everybody", function(accounts) {
 
         await sale.invest({from: investor2, value: OneEther*2});
         assert.equal(await _TB(investor2), await _RT(200), "Investor2 should get 200 tokens");
+        assert.equal(await sale.tokensLeft.call(), await _RT(700), " Sale should have 700 tokens for sale");
+    })
+    var sale2;
+    it("create parallel sale and invest there", async function() {
+        sale2 = await Crowdsale.new(pool.address, 0, beneficiary, 0, DurationHours, 0, TokensForOneEther, 0);        
+        await restrictions.setManager(sale2.address, true);
+        await pool.setTrustee(sale2.address, true);
+
+        await sale2.invest({from: investor2, value: OneEther*2});
+        assert.equal(await _TB(investor2), await _RT(400), "Investor2 should have 400 tokens");
+        assert.equal(await sale2.tokensLeft.call(), await _RT(500), "New Sale should have 500 tokens for sale");
+        assert.equal(await sale.tokensLeft.call(), await _RT(500), "Old Sale should have 500 tokens for sale");
     })
 
     it("try to transfer tokens from investor1 to investor3, should fail", async function() {
@@ -128,5 +140,13 @@ contract("BCSCrowdsale. Lock token transfer for everybody", function(accounts) {
         var newBalance = await web3.eth.getBalance(beneficiary);
 
         assert.equal(newBalance.minus(oldBalance).toNumber(), 3*OneEther, "Beneficiary should get 3E");
+    })
+
+    it("withdraw from parallel sale", async function() {                
+        var oldBalance = await web3.eth.getBalance(beneficiary);
+        await sale2.transferToBeneficiary();
+        var newBalance = await web3.eth.getBalance(beneficiary);
+
+        assert.equal(newBalance.minus(oldBalance).toNumber(), 2*OneEther, "Beneficiary should get 2E");
     })
 })

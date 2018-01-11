@@ -4,6 +4,7 @@ var Web3 = require("web3");
 var web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
 var utils = new (require("./timeutils.js"))(web3);
 
+var CheckList = artifacts.require("CheckList");
 var Vendor = artifacts.require("Vendor");
 var ProductDispatcherStorage = artifacts.require("ProductDispatcherStorage");
 var ProductEngine = artifacts.require("ProductEngine");
@@ -11,11 +12,16 @@ var ProductEngineTest = artifacts.require("ProductEngineTest");
 var Product = artifacts.require("Product");
 var VendorManager = artifacts.require("VendorManager");
 var VendorFactory = artifacts.require("VendorFactory");
+var ProductFactory = artifacts.require("ProductFactory");
 
-var vendor, vendor2, product, manager, factory, factory2;
+var vendor, vendor2, product, manager, factory, factory2, pfactory, pfactory2;
 var Fee = 100;
 var Price = 100;
+var Denominator = 1;
+
 var owner, vendorWallet, provider, user1, user2, engine, engine2, dispatcher, storage;
+var allowedProducts;
+
 
 async function _Name(p) {
     var data = await p.engine.call();
@@ -38,7 +44,15 @@ async function _Price(p) {
     return data[2].toNumber();
 }
 
-var callDone = "!!!";
+async function _IsActive(p) {
+    var data = await p.engine.call();    
+    return data[4];
+}
+
+async function _Denominator(p) {
+    var data = await p.engine.call();    
+    return data[6];
+}
 
 function getProducts(_vendor) {
     return new Promise((resolve, reject) => {
@@ -101,15 +115,17 @@ async function getPurchase(_product, index) {
     return purchases[index].args;
 }
 
-function Prepare(accounts) {
+function Prepare(accounts, denominator) {
     return new Promise(async (resolve, reject) => {
         
+        Denominator = denominator;
         owner = accounts[0];
         vendorWallet = accounts[1];
         provider = accounts[2];
         user1 = accounts[3];
         user2 = accounts[4];
         
+        allowedProducts = await CheckList.new();
         //create engine
         engine = await ProductEngine.new();        
         storage = await ProductDispatcherStorage.new(engine.address);
@@ -119,16 +135,19 @@ function Prepare(accounts) {
             storage.address.slice(2));        
         dispatcher = await ProductLibDispatcher.new();
 
-        //link Vendor with dispatcher
-        //Vendor.link('IProductEngine', engine.address);
-        //Vendor.link('IProductEngine', dispatcher.address);
-
-        VendorFactory.link('IProductEngine', dispatcher.address);
+        ProductFactory.link('IProductEngine', dispatcher.address);
         
         manager = await VendorManager.new(provider, Fee);
         factory = await VendorFactory.new(manager.address);
         factory2 = await VendorFactory.new(manager.address);
+        
+        pfactory = await ProductFactory.new(manager.address, allowedProducts.address);
+        pfactory2 = await ProductFactory.new(manager.address, allowedProducts.address);
+        
+        await allowedProducts.setManager(pfactory.address, true);
+        await allowedProducts.setManager(pfactory2.address, true);
         await manager.setFactory(factory.address, true);
+        await manager.setFactory(pfactory.address, true);
 
         var txr = await factory.createVendor(vendorWallet, "Vendor1");
         vendor = Vendor.at(txr.logs[0].args.vendor);
@@ -138,7 +157,7 @@ function Prepare(accounts) {
 
 
 contract("Platform base contracts", function(accounts) {
-    it("create all the base contracts", async function() {
+    it("CREATE. create all the base contracts", async function() {
         owner = accounts[0];
         vendorWallet = accounts[1];
         provider = accounts[2];
@@ -146,6 +165,7 @@ contract("Platform base contracts", function(accounts) {
         user2 = accounts[4];
         user3 = accounts[5];
 
+        allowedProducts = await CheckList.new();
         engine = await ProductEngine.new();
         engine2 = await ProductEngineTest.new();
         storage = await ProductDispatcherStorage.new(engine.address);
@@ -157,19 +177,26 @@ contract("Platform base contracts", function(accounts) {
         dispatcher = await ProductLibDispatcher.new();
 
         Product.link('IProductEngine', dispatcher.address);
-        VendorFactory.link('IProductEngine', dispatcher.address);
+        ProductFactory.link('IProductEngine', dispatcher.address);
 
         manager = await VendorManager.new(provider, Fee);
         factory = await VendorFactory.new(manager.address);
         factory2 = await VendorFactory.new(manager.address);
-        await manager.setFactory(factory.address, true);
 
+        pfactory = await ProductFactory.new(manager.address, allowedProducts.address);
+        pfactory2 = await ProductFactory.new(manager.address, allowedProducts.address);
+        
+        await allowedProducts.setManager(pfactory.address, true);
+        await allowedProducts.setManager(pfactory2.address, true);
+        await manager.setFactory(factory.address, true);
+        await manager.setFactory(pfactory.address, true);
+        
         assert.isTrue(await manager.validFactory.call(factory.address), "Invalid factory in manager");
         assert.isFalse(await manager.validFactory.call(factory2.address), "Factory2 should not be valid");
         assert.equal(await factory.manager.call(), manager.address, "Invalid manager in factory");
     })
 
-    it("create vendor as user1 via factory", async function() {
+    it("CREATE. create vendor as user1 via factory", async function() {
         assert.equal(await manager.getVendorCount.call(user1), 0, "Should be no vendor contracts for user1");
 
         var txr = await factory.createVendor(vendorWallet, "Vendor1", {from: user1});        
@@ -183,7 +210,7 @@ contract("Platform base contracts", function(accounts) {
         assert.equal(await manager.getVendorCount.call(user1), 1, "Should be 1 vendor contract for user1");
     })
 
-    it("try to call manager.addVendor as not factory", async function() {
+    it("CREATE. try to call manager.addVendor as not factory", async function() {
         try {
             await manager.addVendor(user1, vendor.address);
         } catch(e) {
@@ -192,8 +219,8 @@ contract("Platform base contracts", function(accounts) {
         assert.isTrue(false, "manager.addVendor should fail");
     })
 
-    it("create product", async function() {    
-        var txr = await factory.createProduct(vendor.address, "Product1.1", 1000, 0, {from:user1});
+    it("CREATE. create product", async function() {    
+        var txr = await pfactory.createProduct(vendor.address, "Product1.1", 1000, 0, Denominator, {from:user1});
         assert.equal(txr.logs[0].event, "ProductCreated", "Should be emitted 'ProductCreated' event");
         assert.equal(txr.logs[0].args.vendor, vendor.address, "Event's 'vendor' arg should equal to vendor contract");
 
@@ -208,12 +235,21 @@ contract("Platform base contracts", function(accounts) {
         assert.equal(await vendor.getProductsCount.call(), 1, "Vendor should have 1 product in storage");
     })
 
-    it("disable vendor", async function() {        
+    it("CREATE. try change product's owner, should fail", async function() {
+        try {
+            await product.transferOwnership(user3, {from:user1});
+        } catch(e) {
+            return true;
+        }
+        throw "Should fail";
+    })
+
+    it("DISABLE VENDOR. disable", async function() {        
         await manager.setValidVendor(vendor.address, false);
         assert.isFalse(await manager.validVendor.call(vendor.address), "Vendor should be invalid in manager");        
     })
 
-    it("try to create product, should fail", async function() {
+    it("DISABLE VENDOR. try to create product, should fail", async function() {
         try {
             await factory.createProduct(vendor.address, "Invalid Product", 2000, 0, {from:user1});
         } catch(e) {
@@ -222,12 +258,12 @@ contract("Platform base contracts", function(accounts) {
         assert.isTrue(false, "Product createion should fail");
     })
 
-    it("enable vendor back", async function() {        
+    it("DISABLE VENDOR. enable vendor back", async function() {        
         await manager.setValidVendor(vendor.address, true);
         assert.isTrue(await manager.validVendor.call(vendor.address), "Vendor should be invalid in manager");        
     })
 
-    it("try to disable vendor as not owner, should fail", async function() {
+    it("DISABLE VENDOR. try to disable vendor as not owner, should fail", async function() {
         try {
             await manager.setValidVendor(vendor.address, false, {from:user1});
         } catch(e) {
@@ -236,8 +272,8 @@ contract("Platform base contracts", function(accounts) {
         assert.isTrue(false, "Fail to disabel vendor, not manager's owner");
     })
 
-    it("create one more product", async function() {
-        var txr = await factory.createProduct(vendor.address, "Product1.2", 2000, 0, {from:user1});
+    it("CREATE. create one more product", async function() {
+        var txr = await pfactory.createProduct(vendor.address, "Product1.2", 2000, 0, Denominator, {from:user1});
         
         var product2 = Product.at(txr.logs[0].args.product);//Product.at(await vendor.products.call(1));
         assert.equal(await product2.owner.call(), vendor.address, "Product's owner should be vendor contract");
@@ -252,7 +288,7 @@ contract("Platform base contracts", function(accounts) {
         assert.equal(await vendor.products.call(1), product2.address, "2nd product in storage array should be 2nd created");        
     })
 
-    it("create product as not vendor's owner, should fail", async function() {
+    it("CREATE. create product as not vendor's owner, should fail", async function() {
         try {
             var txr = await factory.createProduct(vendor.address, "Product1", 1000, 0, {from:user2});
         } catch(e) {
@@ -261,8 +297,8 @@ contract("Platform base contracts", function(accounts) {
         assert.isTrue(false, "Product creation should fail, wrong owner");
     })    
 
-    it("create vendor from constructor, should fail to create product with factory then", async function() {
-        var alienVendor = await Vendor.new(manager.address, "ALIEN", user3, user3, 0, {from:user3});
+    it("CREATE. create vendor from constructor, should fail to create product with factory then", async function() {
+        var alienVendor = await Vendor.new(manager.address, "ALIEN", user3, 0, {from:user3});
         assert.isFalse(await manager.validVendor.call(alienVendor.address), "Vendor should be invalid");
 
         try {
@@ -273,9 +309,10 @@ contract("Platform base contracts", function(accounts) {
         assert.isTrue(false, "Product creation should fail");
     })
 
-    it("create vendor and product from constructors, 'buy' fails as owner isn't VendorBase", async function() {
-        var alienVendor = await Vendor.new(manager.address, "ALIEN", user3, user3, 0, {from:user3});
-        var alienProduct = await Product.new(0, "ALIENP", 1500, 0, {from:user3});
+    let alienVendor, alienProduct;
+    it("CREATE. create vendor and product from constructors, 'buy' fails as owner isn't VendorBase", async function() {
+        alienVendor = await Vendor.new(manager.address, "ALIEN", /*user3,*/ user3, 0, {from:user3});
+        alienProduct = await Product.new("ALIENP", 1500, 0, Denominator, {from:user3});
 
         try {
             await alienProduct.buy("!", false, 1500, {value: 1500});
@@ -285,14 +322,37 @@ contract("Platform base contracts", function(accounts) {
         assert.isTrue(false, "Alien product 'buy' should fail");
     })
 
-    it("disable manager", async function() {
+    it("ATTACH. attach as not owner", async function() {
+        try {
+            await pfactory.addProduct(vendor.address, alienProduct.address, {from:user1});        
+        } catch (e) {
+            return true;
+        }
+        throw "Should fail";
+    })
+
+    it("ATTACH. attach constructed product to vendor", async function() {
+        await pfactory.addProduct(vendor.address, alienProduct.address);
+        
+        await alienProduct.transferOwnership(vendor.address, {from:user3});
+
+        let productsCount = await vendor.getProductsCount.call();
+        assert.equal(await vendor.products.call(productsCount-1), alienProduct.address, "Constructed product should be in vendor list");
+    });
+
+    it("ATTACH. buy constructed product", async function() {
+        await alienProduct.buy("!", false, 1500, {value: 1500});
+        assert.equal(await alienProduct.getTotalPurchases.call(), 1, "There should be 1 purchase");
+    });
+
+    it("DISABLE MANAGER. disable manager", async function() {
         assert.isTrue(await manager.active.call(), "Manager state should be active now");
         await manager.setActive(false); 
 
         assert.isFalse(await manager.active.call(), "Manager state should be inactive now");
     })
 
-    it("try to create vendor, should fail", async function() {
+    it("DISABLE MANAGER. try to create vendor, should fail", async function() {
         try {
             await factory.createVendor(vendorWallet, "Vendor fail", {from: user2});
         } catch(e) {
@@ -301,7 +361,7 @@ contract("Platform base contracts", function(accounts) {
         assert.isTrue(false, "Usage of factory should fail, manager disabled");
     })
 
-    it("try to create product, should fail", async function() {        
+    it("DISABLE MANAGER. try to create product, should fail", async function() {        
         try {
             await factory.createProduct(vendor.address, "Product1", 1000, 0, {from:user1});
         } catch(e) {
@@ -310,13 +370,13 @@ contract("Platform base contracts", function(accounts) {
         assert.isTrue(false, "Usage of factory should fail, manager disabled");
     })
 
-    it("enable manager back", async function() {
+    it("DISABLE MANAGER. enable manager back", async function() {
         await manager.setActive(true); 
         
         assert.isTrue(await manager.active.call(), "Manager state should be active now");
     })
 
-    it("try to disable manager as not owner", async function() {
+    it("DISABLE MANAGER. try to disable manager as not owner", async function() {
         try {
             await manager.setActive(false, {from:user1});
         } catch(e) {
@@ -326,7 +386,7 @@ contract("Platform base contracts", function(accounts) {
     })
 
     var vendorC;
-    it("create custom vendor", async function() {
+    it("CUSTOM VENDOR. create custom vendor", async function() {
         var txr = await factory.createCustomVendor(user3, user2, "Custom", 50);
         vendorC = Vendor.at(txr.logs[0].args.vendor);
 
@@ -338,9 +398,9 @@ contract("Platform base contracts", function(accounts) {
         assert.equal(await manager.vendorLists.call(user3, 0), vendorC.address, "User3 vendorlists should contain new contract");
     })
 
-    it("create custom vendor's product and buy", async function() {
+    it("CUSTOM VENDOR. create custom vendor's product and buy", async function() {
 
-        var txr = await factory.createProduct(vendorC.address, "Custom Product", 2000, 0, {from:user3});
+        var txr = await pfactory.createProduct(vendorC.address, "Custom Product", 2000, 0, Denominator, {from:user3});
         var product = Product.at(txr.logs[0].args.product);        
 
         var balance1 = await web3.eth.getBalance(user2);
@@ -355,16 +415,16 @@ contract("Platform base contracts", function(accounts) {
         assert.equal(pbalance2.minus(pbalance1).toNumber(), 100, "Provider should get 100 (5%)");
     })
 
-    it("try to create custom vendor as not owner, should fail", async function(){
+    it("CUSTOM VENDOR. try to create custom vendor as not owner, should fail", async function(){        
         try {
-            var txr = await manager.createCustomVendor(user3, user2, "Custom", 50, {from:user1});
+            var txr = await factory.createCustomVendor(user3, user2, "Custom", 50, {from:user1});
         } catch(e) {
             return true;
         }
         assert.isTrue(false, "Create custom vendor should fail");
     })
 
-    it("try to change factory as not owner, should fail", async function() {
+    it("CHANGE FACTORY. try to change factory as not owner, should fail", async function() {
         try {
             await manager.setFactory(factory2.address, true, {from: user2});
         } catch(e) {
@@ -373,30 +433,34 @@ contract("Platform base contracts", function(accounts) {
         assert.isTrue(false, "Factory change should fail");
     })
 
-    it("add new factory", async function() {        
+    it("CHANGE FACTORY. add new factory", async function() {        
         await manager.setFactory(factory2.address, true);
+        await manager.setFactory(pfactory2.address, true);
         
-        assert.isTrue(await manager.validFactory.call(factory2.address), "Invalid factory in manager");        
+        assert.isTrue(await manager.validFactory.call(factory2.address), "Invalid vendor factory in manager");        
+        assert.isTrue(await manager.validFactory.call(pfactory2.address), "Invalid product factory in manager");        
         assert.equal(await factory2.manager.call(), manager.address, "Invalid manager in factory");
     })
 
-    it("still we are able to use old factory", async function() {
+    it("CHANGE FACTORY. still we are able to use old factory", async function() {
         var txr = await factory.createVendor(vendorWallet, "Vendor1");
         var vendor3 = Vendor.at(txr.logs[0].args.vendor);
 
-        txr = await factory.createProduct(vendor3.address, "Product1.2", 2000, 0);
+        txr = await pfactory.createProduct(vendor3.address, "Product1.2", 2000, 0, Denominator);
         
         var product3 = Product.at(txr.logs[0].args.product);        
         var products = await getProducts(vendor3);
         assert.equal(products.length, 1, "New Vendor should have 1 product");
     })
 
-    it("disable old factory", async function() {
+    it("CHANGE FACTORY. disable old factory", async function() {
         await manager.setFactory(factory.address, false);
-        assert.isFalse(await manager.validFactory.call(factory.address), "Old factory should be invalid");
+        await manager.setFactory(pfactory.address, false);
+        assert.isFalse(await manager.validFactory.call(factory.address), "Old vendor factory should be invalid");
+        assert.isFalse(await manager.validFactory.call(pfactory.address), "Old product factory should be invalid");
     })
 
-    it("try to use old factory to create vendor, should fail", async function() {
+    it("CHANGE FACTORY. try to use old factory to create vendor, should fail", async function() {
         try {
             await factory.createVendor(vendorWallet, "Vendor fail", {from: user2});
         } catch(e) {
@@ -405,16 +469,16 @@ contract("Platform base contracts", function(accounts) {
         assert.isTrue(false, "Usage of old factory should fail");
     })
 
-    it("try to use old factory to create product, should fail", async function() {        
+    it("CHANGE FACTORY. try to use old factory to create product, should fail", async function() {        
         try {
-            await factory.createProduct(vendor.address, "Product1", 1000, 0, {from:user1});
+            await pfactory.createProduct(vendor.address, "Product1", 1000, 0, Denominator, {from:user1});
         } catch(e) {
             return true;
         }
         assert.isTrue(false, "Usage of old factory should fail");
     })
 
-    it("create vendor via new factory2", async function() {
+    it("CHANGE FACTORY. create vendor via new factory2", async function() {
         var txr = await factory2.createVendor(vendorWallet, "Vendor2", {from: user2});
 
         vendor2 = Vendor.at(txr.logs[0].args.vendor);
@@ -424,8 +488,8 @@ contract("Platform base contracts", function(accounts) {
         assert.equal(await manager.getVendorCount.call(user2), 1, "Should be 1 vendor contract for user2");
     })   
 
-    it("create product via new factory2 on new vendor", async function() {
-        var txr = await factory2.createProduct(vendor2.address, "Product2.1", 1000, 0, {from:user2});        
+    it("CHANGE FACTORY. create product via new factory2 on new vendor", async function() {
+        var txr = await pfactory2.createProduct(vendor2.address, "Product2.1", 1000, 0, Denominator, {from:user2});        
 
         var product2 = Product.at(txr.logs[0].args.product);
 
@@ -434,17 +498,17 @@ contract("Platform base contracts", function(accounts) {
         assert.equal(await product2.owner.call(), vendor2.address, "Product's owner should be vendor contract");
     })
 
-    it("create product via new factory2 on old vendor", async function() {
-        var txr = await factory2.createProduct(vendor.address, "Product1.3", 3000, 20, {from:user1});
+    it("CHANGE FACTORY. create product via new factory2 on old vendor", async function() {
+        var txr = await pfactory2.createProduct(vendor.address, "Product1.3", 3000, 20, Denominator, {from:user1});
         
         var product2 = Product.at(txr.logs[0].args.product); //Product.at(await vendor.products.call(2));        
         assert.equal(await _Price(product2), 3000, "Price should equal to 3000");
 
         var products = await getProducts(vendor);
-        assert.equal(products.length, 3, "Vendor1 should have 3 products");
+        assert.equal(products.length, 4, "Vendor1 should have 4 products");
     })
 
-    it("buy product", async function() {
+    it("BUY. buy product", async function() {
         var details = await product.calculatePaymentDetails.call(2100, false);
         assert.equal(details[0].toNumber(), 2, "Should be able to purchase 2 units");
         assert.equal(details[1].toNumber(), 2000, "Will pay 2000");
@@ -462,7 +526,7 @@ contract("Platform base contracts", function(accounts) {
 
 
 
-    it("try to change provider and fee as not owner, should fail", async function(){
+    it("CHANGE PROVIDER. try to change provider and fee as not owner, should fail", async function(){
         try {
             await manager.setParams(user1, 500, {from:user1});
         } catch(e) {
@@ -471,35 +535,85 @@ contract("Platform base contracts", function(accounts) {
         assert.isTrue(false, "Shouldn't be able to change params");
     })
 
-    it("change provider and fee", async function() {
+    it("CHANGE PROVIDER. change provider and fee", async function() {
         await manager.setParams(user1, 500);
         assert.equal(await manager.provider.call(), user1, "Fee should go to user1");
         assert.equal(await manager.providerFeePromille.call(), 500, "Fee should be 50%");
     })
 
-    it("create vendor and product, then buy some, fee should go to new provider", async function() {
+    it("CHANGE PROVIDER. create vendor and product, then buy some, fee should go to new provider", async function() {
         var balance1 = await web3.eth.getBalance(user1);
         var pbalance1 = await web3.eth.getBalance(provider);
 
         var txr = await factory2.createVendor(owner, "Vendor1");
         var newVendor = Vendor.at(txr.logs[0].args.vendor);
-        txr = await factory2.createProduct(newVendor.address, "Product1.2", 2000, 0);        
+        txr = await pfactory2.createProduct(newVendor.address, "Product1.2", 2000, 0, Denominator);        
         var newProduct = Product.at(txr.logs[0].args.product);//Product.at(await newVendor.products.call(0));    
         await newProduct.buy("111", true, 2000, {from:user2, value: 2000});
 
         var balance2 = await web3.eth.getBalance(user1);
         var pbalance2 = await web3.eth.getBalance(provider);
-        assert.equal(balance2.minus(balance1).toNumber(), 1000, "User1 should get 1000 as fee");
+        assert.equal(balance2.minus(balance1).toNumber(), 1000, "User1 (new provider) should get 1000 as fee");
         assert.equal(pbalance2.minus(pbalance1).toNumber(), 0, "Previous provider should get 0");
     })
 
-    it("change params back", async function() {
+    it("CHANGE PROVIDER. try to buy existing product, vendor's current fee should go to new provider", async function() {
+        var balance1 = await web3.eth.getBalance(user1);
+        var pbalance1 = await web3.eth.getBalance(provider);
+
+        var product2 = Product.at(await vendor.products.call(1));
+        
+        await product2.buy("TEST", false, 2000, {value: 2000});
+        assert.equal(await _SoldUnits(product2), 1, "Product should have 1 sold unit");        
+
+        var balance2 = await web3.eth.getBalance(user1);
+        var pbalance2 = await web3.eth.getBalance(provider);
+
+        assert.equal(balance2.minus(balance1).toNumber(), 200, "User1 (new provider) should get 200 as fee (10%)");
+        assert.equal(pbalance2.minus(pbalance1).toNumber(), 0, "Previous provider should get 0");
+    })
+
+    it("CHANGE PROVIDER. change provider and fee back", async function() {
         await manager.setParams(provider, Fee);
         assert.equal(await manager.provider.call(), provider, "Fee should go to provider");
         assert.equal(await manager.providerFeePromille.call(), Fee, "Fee should be 10%");
     })
 
-    it("try to change library as not owner, should fail", async function() {
+    // it("CHANGE VENDOR's FEE. change vendor's fee to 30% as manager", async function() {
+    //     await vendor.setFee(300);
+    //     assert.equal(await vendor.providerFeePromille.call(), 300, "Fee should equal 30%");
+    // })
+
+    // it("CHANGE VENDOR's FEE. try to buy product, 30% should go to provider", async function() {
+    //     var balance1 = await web3.eth.getBalance(vendorWallet);
+    //     var pbalance1 = await web3.eth.getBalance(provider);
+
+    //     var product2 = Product.at(await vendor.products.call(1));
+        
+    //     await product2.buy("TEST NEW FEE", false, 2000, {value: 2000});        
+
+    //     var balance2 = await web3.eth.getBalance(vendorWallet);
+    //     var pbalance2 = await web3.eth.getBalance(provider);
+
+    //     assert.equal(balance2.minus(balance1).toNumber(), 1400, "Vendor wallet should get 1400");
+    //     assert.equal(pbalance2.minus(pbalance1).toNumber(), 600, "provider should get 600");
+    // })
+
+    // it("CHANGE VENDOR's FEE. change vendor's fee as manager back", async function() {
+    //     await vendor.setFee(Fee);
+    //     assert.equal(await vendor.providerFeePromille.call(), Fee, "Fee should equal default");
+    // })
+
+    // it("CHANGE VENDOR's FEE. change vendor's fee as not a manager, should fail", async function() {
+    //     try {
+    //         await vendor.setFee(300, {from : user1});
+    //     } catch(e) {
+    //         return true;
+    //     }
+    // })
+
+
+    it("LIBRARY. try to change library as not owner, should fail", async function() {
         try {
             await storage.replace(engine2.address, {from: user1});
         } catch(e) {
@@ -508,22 +622,24 @@ contract("Platform base contracts", function(accounts) {
         assert.isTrue(false, "Library change should fail");
     })    
 
-    it("change library", async function() {        
+    it("LIBRARY. change library", async function() {        
         await storage.replace(engine2.address);
         assert.equal(await storage.lib.call(), engine2.address, "New library should be engine2");
     })
 
-    it("check new 'calculatePaymentDetails' getter", async function() {
+    it("LIBRARY. check new 'calculatePaymentDetails' getter", async function() {
         var details = await product.calculatePaymentDetails.call(1237621, true);
         assert.equal(details[0].toNumber(), 10, "unitsToBuy should equal 10");
         assert.equal(details[1].toNumber(), 1237621, "etherToPay should equal 1237621");
         assert.equal(details[2].toNumber(), 0, "etherToReturn should equal 0");
     })
 
-    it("check new 'buy' function", async function() {
+    it("LIBRARY. check new 'buy' function", async function() {
         var vBalance1 = await web3.eth.getBalance(vendorWallet);
         var pBalance1 = await web3.eth.getBalance(provider);
         var cBalance1 = await web3.eth.getBalance(product.address);
+
+        //assert.equal((await product.getTotalPurchases.call()).toNumber(), 1, "Should be 1 purchases");
 
         await product.buy("c1", false, 1000, {from:user1, value: 143000});
 
@@ -543,12 +659,12 @@ contract("Platform base contracts", function(accounts) {
         assert.equal(cBalance1.toNumber(), cBalance2.toNumber(), "Product contract should leave no ether to itself");
     })
 
-    it("check old purchase", async function() {
+    it("LIBRARY. check old purchase", async function() {
         var purchase = await getPurchase(product, 0);
         assert.equal(purchase.paidUnits.toNumber(), 2, "paidUnits field should still equal to 2 in old purchase");
     })
 
-    it("try to 'buy' with amount little than requried by new library, should fail", async function() {
+    it("LIBRARY. try to 'buy' with amount little than requried by new library, should fail", async function() {
         try {
             await product.buy("12323", true, 1000, {from:user1, value:9000});
         } catch(e) {
@@ -556,6 +672,27 @@ contract("Platform base contracts", function(accounts) {
         }
         assert.isTrue(false, "Payment should fail, low value");
     })
+
+    // it("MIGRATION. Get all products from all vendors", async function () {
+    //     console.log(owner);
+    //     console.log(user1);
+    //     console.log(user2);
+    //     console.log(user3);
+
+    //     console.log(factory.address);
+    //     console.log(factory2.address);
+    //     var tx = web3.eth.getTransaction(manager.transactionHash);
+    //     //console.log(tx);
+    //     //var firstBlock =  manager.transactionHash
+    //     var event = manager.VendorAdded({}, {fromBlock: tx.blockNumber, toBlock:'latest'});
+    //     event.get(function(err, result) {
+    //         if(err) {
+    //             console.log(err);
+    //         } else {
+    //             console.log(result);
+    //         }
+    //     })
+    // })
 })
 
 
@@ -564,16 +701,17 @@ contract("Product. Consecutive overpays", function(accounts) {
     var vBalance1, vBalance2, pBalance1, pBalance2;
 
     it("create product", async function() {
-        await Prepare(accounts);
+        await Prepare(accounts, 1);
         
         vBalance1 = await web3.eth.getBalance(vendorWallet);
         pBalance1 = await web3.eth.getBalance(provider);
 
-        var txr = await factory.createProduct(vendor.address, "POverpay", Price, 0);
+        var txr = await pfactory.createProduct(vendor.address, "POverpay", Price, 0, Denominator);
         product = Product.at(txr.logs[0].args.product);
         
         assert.equal(await _Price(product), Price, "Price should equal 100");
         assert.equal(await _MaxUnits(product), 0, "Product should be unlimited");
+        assert.equal(await _Denominator(product), 1, "Product's denominator should be 1");
     })
 
     it("check units to purchase", async function() {
@@ -658,8 +796,8 @@ contract("Product. Consecutive overpays", function(accounts) {
 contract("Product. Overpays and limited supply.", function(accounts) {
     var Limit = 10;
     it("create limited product, 10 units", async function() {
-        await Prepare(accounts);        
-        var txr = await factory.createProduct(vendor.address, "PLimited", Price, Limit);
+        await Prepare(accounts, 1);        
+        var txr = await pfactory.createProduct(vendor.address, "PLimited", Price, Limit, Denominator);
         product = Product.at(txr.logs[0].args.product);// Product.at(await vendor.products.call(0));        
         assert.equal(await _MaxUnits(product), 10, "Product's limit should be 10");
     })
@@ -719,22 +857,52 @@ contract("Product. Overpays and limited supply.", function(accounts) {
 
 
 
-contract("Product. Change price and vendor wallet, markAsDelivered, ratings", function(accounts) {    
+contract("Product. Change parameters, markAsDelivered, ratings", function(accounts) {    
     var vBalance1, vBalance2, pBalance1, pBalance2, nBalance1, nBalance2;
     var newWallet = accounts[8];
 
     it("create product and buy one", async function() {
-        await Prepare(accounts);         
+        await Prepare(accounts, 1);         
 
         vBalance1 = await web3.eth.getBalance(vendorWallet);
         pBalance1 = await web3.eth.getBalance(provider);
         nBalance1 = await web3.eth.getBalance(newWallet);
 
-        var txr = await factory.createProduct(vendor.address,"PPrice1", Price, 0);
+        var txr = await pfactory.createProduct(vendor.address,"PPrice1", Price, 0, Denominator);
         product = Product.at(txr.logs[0].args.product);
         
         await product.buy("C1", true, Price, {from:user1, value: Price});
         assert.equal(await _SoldUnits(product), 1, "Should have sold 1 unit");
+    })
+
+    it("change active state", async function() {
+        assert.isTrue(await _IsActive(product), "Product state should be active");
+        await product.setParams("INACTIVE", await _Price(product), await _MaxUnits(product), false);
+        assert.isFalse(await _IsActive(product), "Product state should be active");
+    })
+
+    it("try to buy, should fail", async function() {
+        try {
+            await product.buy("C4", true, Price, {from:user1, value: Price * 2});
+        } catch (e) {
+            return true;
+        }
+        assert.isTrue(false, "Purchase should fail as product is inactive");
+    })
+
+    it("change active state back", async function() {        
+        await product.setParams("ACTIVE", await _Price(product), await _MaxUnits(product), true);
+        assert.isTrue(await _IsActive(product), "Product state should be active");
+    })
+
+    it("change state and params as not owner, should fail", async function() {        
+        try {
+            await product.setParams("INACTIVE", await _Price(product), await _MaxUnits(product), false, {from:user2});
+        } catch(e) {
+            return true;
+        }
+
+        assert.isTrue(false, "Change state should fail");
     })
 
     it("change price", async function() {
@@ -770,7 +938,8 @@ contract("Product. Change price and vendor wallet, markAsDelivered, ratings", fu
 
     it("try to change vendor wallet as not owner", async function() {
         try {
-            await vendor.setVendorWallet(newWallet, {from:user1});
+            var name = await vendor.name.call();
+            await vendor.setParams(newWallet, name, {from:user1});
         } catch(e) {
             return true;
         }
@@ -778,7 +947,8 @@ contract("Product. Change price and vendor wallet, markAsDelivered, ratings", fu
     })
 
     it("change vendor wallet", async function() {      
-        await vendor.setVendorWallet(newWallet);
+        var name = await vendor.name.call();
+        await vendor.setParams(newWallet, name);
         assert.equal(await vendor.vendor.call(), newWallet, "Invalid new wallet");
     })
 
@@ -900,47 +1070,72 @@ contract("Product. Change price and vendor wallet, markAsDelivered, ratings", fu
             return true;
         }
         assert.isTrue(false, "Unrating as not customer should fail");
-    })
+    })    
 })
 
+
+contract("Product. Direct ether send to Product.", function(accounts) {
+    it("create product", async function() {
+        await Prepare(accounts, 1);
+        await pfactory.createProduct(vendor.address, "P1", Price, 0, Denominator);
+        product = Product.at(await vendor.products.call(0));        
+    })
+
+    it("try to send ether directly, fail", async function() {        
+        try {
+            await web3.eth.sendTransaction({from: user1, to:product.address, value: Price * 2});
+        } catch(e) {
+            return true;
+        }
+        assert.isTrue(false, "Ether send should fail");
+        //assert.equal(await product.getTotalPurchases.call(), 0, "Should be 0 purchases");
+    })
+})
 
 
 contract("measure gas", async function(accounts) {
     var vendor1, vendor2, product1, product2;
 
     it("create vendor", async function() {
+        Denominator = 1
         owner = accounts[0];
         vendorWallet = accounts[1];
         provider = accounts[2];
         user1 = accounts[3];
         user2 = accounts[4];
                 
+        allowedProducts = await CheckList.new();
         engine = await ProductEngine.new();
+        console.log("Engine: " + web3.eth.getTransactionReceipt(engine.transactionHash).gasUsed);
+
         storage = await ProductDispatcherStorage.new(engine.address);
+        console.log("Storage: " + web3.eth.getTransactionReceipt(storage.transactionHash).gasUsed);
+
         var ProductLibDispatcher = artifacts.require("LibDispatcher");
         ProductLibDispatcher.unlinked_binary = ProductLibDispatcher.unlinked_binary.replace(
             '1111222233334444555566667777888899990000',
             storage.address.slice(2));        
         dispatcher = await ProductLibDispatcher.new();
+        console.log("Dispatcher: " + web3.eth.getTransactionReceipt(dispatcher.transactionHash).gasUsed);
 
         Product.link('IProductEngine', dispatcher.address);
-        VendorFactory.link('IProductEngine', dispatcher.address);
+        ProductFactory.link('IProductEngine', dispatcher.address);
 
         manager = await VendorManager.new(provider, Fee);
+        console.log("Manager:  " + web3.eth.getTransactionReceipt(manager.transactionHash).gasUsed);
+
         factory = await VendorFactory.new(manager.address);        
+        pfactory = await ProductFactory.new(manager.address, allowedProducts.address);        
         await manager.setFactory(factory.address, true);
+        await manager.setFactory(pfactory.address, true);
+        await allowedProducts.setManager(pfactory.address, true);
+        console.log("Factory: " + web3.eth.getTransactionReceipt(factory.transactionHash).gasUsed);
 
         var bytesString = web3.fromUtf8("АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЬЫЪЭЮЯ");
         //console.log(bytesString);
         var t1 = await factory.createVendor(vendorWallet, "bytesString");
-        console.log("Factory gas " + t1.receipt.gasUsed);
+        console.log("Vendor: " + t1.receipt.gasUsed);
         vendor1 = Vendor.at(t1.logs[0].args.vendor);
-
-        // vendor1.Created({}, {fromBlock:0, toBlock:'latest'}).get(function(error, result) {
-        //     if(!error) {
-        //         console.log(result[0].args);
-        //     }
-        // })  
         
         await factory.createVendor(vendorWallet, "V11111111111111.2");        
         await factory.createVendor(user1, "V2.1", {from: user1});
@@ -951,41 +1146,36 @@ contract("measure gas", async function(accounts) {
         await factory.createVendor(vendorWallet, "Vddddddddddddddddddddd");
         await factory.createVendor(user1, ".@0123456789abcdefghijklmnopqrstu", {from: user1});
         t1 = await factory.createVendor(user1, "123", {from: user1});
-        console.log("Factory gas (10-th) " + t1.receipt.gasUsed);
+        console.log("Vendor (10-th): " + t1.receipt.gasUsed);
         vendor2 =  Vendor.at(t1.logs[0].args.vendor);        
     })
 
     it("create product", async function() {
-        var t1 = await factory.createProduct(vendor1.address, "gas measure product", 1000, 0);                
-        console.log("Product creation gas " + t1.receipt.gasUsed);
+        var t1 = await pfactory.createProduct(vendor1.address, "gas measure product", 1000, 0, Denominator);                
+        console.log("Product: " + t1.receipt.gasUsed);
         product1 = Product.at(t1.logs[0].args.product);
         //console.log(await _Name(product1));
-        // product1.Created({}, {fromBlock:0, toBlock:'latest'}).get(function(error, result) {
-        //     if(!error) {
-        //         console.log(result[0].args);
-        //     }
-        // })            
 
-        await factory.createProduct(vendor1.address, "P2", 1000, 20);
-        await factory.createProduct(vendor1.address, "P3", 1000, 20);
-        await factory.createProduct(vendor1.address, "P4", 1000, 20);
-        await factory.createProduct(vendor1.address, "P5", 1000, 20);
-        await factory.createProduct(vendor1.address, "P6", 1000, 20);
-        await factory.createProduct(vendor1.address, "P7", 1000, 20);        
-        await factory.createProduct(vendor1.address, "P8", 1000, 20);
-        await factory.createProduct(vendor1.address, "P9", 1000, 20);
-        t1 = await factory.createProduct(vendor1.address, "P10", 1000, 20);
-        console.log("Product creation gas (10-th) " + t1.receipt.gasUsed);
+        await pfactory.createProduct(vendor1.address, "P2", 1000, 20, Denominator);
+        await pfactory.createProduct(vendor1.address, "P3", 1000, 20, Denominator);
+        await pfactory.createProduct(vendor1.address, "P4", 1000, 20, Denominator);
+        await pfactory.createProduct(vendor1.address, "P5", 1000, 20, Denominator);
+        await pfactory.createProduct(vendor1.address, "P6", 1000, 20, Denominator);
+        await pfactory.createProduct(vendor1.address, "P7", 1000, 20, Denominator);        
+        await pfactory.createProduct(vendor1.address, "P8", 1000, 20, Denominator);
+        await pfactory.createProduct(vendor1.address, "P9", 1000, 20, Denominator);
+        t1 = await pfactory.createProduct(vendor1.address, "P10", 1000, 20, Denominator);
+        console.log("Product (10-th): " + t1.receipt.gasUsed);
 
-        t1 = await factory.createProduct(vendor2.address, "P10", 1000, 20, {from:user1});
-        console.log("Product creation gas (1-st, Vendor2) " + t1.receipt.gasUsed);
+        t1 = await pfactory.createProduct(vendor2.address, "P10", 1000, 20, Denominator, {from:user1});
+        console.log("Product (1-st, Vendor2): " + t1.receipt.gasUsed);
     })
 
     it("buy", async function() {
         var t1 = await product1.buy("c1", false, 1000, {from:user2, value:1000});
-        console.log("Buy gas " + t1.receipt.gasUsed);
+        console.log("Buy: " + t1.receipt.gasUsed);
         var t1 = await product1.buy("c1", false, 1000, {from:user1, value:1000});
-        console.log("Buy gas (purchase another user) " + t1.receipt.gasUsed);
+        console.log("Buy (purchase another user): " + t1.receipt.gasUsed);
         await product1.buy("c2", false, 1000, {from:user2, value:1000});
         await product1.buy("c3", false, 1000, {from:user2, value:1000});
         await product1.buy("c4", false, 1000, {from:user2, value:1000});
@@ -1006,27 +1196,77 @@ contract("measure gas", async function(accounts) {
         await product1.buy("c9", false, 1000, {from:user2, value:1000});
         await product1.buy("c9", false, 1000, {from:user2, value:1000});        
         t1 = await product1.buy("x2", false, 1000, {from:user2, value:1000});
-        console.log("Buy gas (20-th) " + t1.receipt.gasUsed);
+        console.log("Buy (20-th): " + t1.receipt.gasUsed);
+
+        // for(var i = 0; i < 1000; ++i) {
+        //     t1 = await product1.buy("x2safsdfsdf", false, 1000, {from:accounts[i%10], value:1000});
+        //     console.log("Buy (20-th): " + t1.receipt.gasUsed);
+        // }
     })
 })
 
+contract("Product denominator > 1", function(accounts) {
+    let price1 = 10000;
+    let price2 = 100;
 
+    it("create unlimited product with denominator = 1000", async function() {
+        await Prepare(accounts, 1000);
+        
+        let tx = await pfactory.createProduct(vendor.address, "D1000", price1, 0, Denominator);   
+        product = Product.at(tx.logs[0].args.product);     
+        assert.equal(await _Denominator(product), 1000, "Denominator should equal 1000");
+    });
 
-//should be able to receive payments directly so test is invalid
-// contract("Product. Direct ether send to Product.", function(accounts) {
-//     it("create product", async function() {
-//         await Prepare(accounts);
-//         await factory.createProduct(vendor.address, "P1", Price, 0);
-//         product = Product.at(await vendor.products.call(0));        
-//     })
+    it("pay for 1 product", async function() {
+        await product.buy("Buy1", false, price1, {from:user1, value: price1});
+        assert.equal(await product.getTotalPurchases.call(), 1, "1 purchase should be made");
 
-//     it("try to send ether directly, fail", async function() {
-//         try {
-//             await web3.eth.sendTransaction({from: user1, to:product.address, value: Price * 2});
-//         } catch(e) {
-//             return true;
-//         }
-//         assert.isTrue(false, "Ether send should fail");
-//         //assert.equal(await product.getTotalPurchases.call(), 0, "Should be 0 purchases");
-//     })
-// })
+        var purchase = await product.getPurchase.call(0);
+        assert.equal(getPurchaseUnits(purchase), 1000, "1 unit should be bought during last purchase (1000 miliunits");
+
+        assert.equal(await _SoldUnits(product), 1000, "1 unit should be sold totally (1000 miliunits");
+    });
+
+    it("pay for 1/2 product", async function() {
+        await product.buy("Buy0.5", false, price1, {from:user1, value: price1/2});
+        assert.equal(await product.getTotalPurchases.call(), 2, "2 purchases should be made");
+
+        var purchase = await product.getPurchase.call(1);
+        assert.equal(getPurchaseUnits(purchase), 500, "1/2 units should be bought during last purchase (500 miliunits");
+
+        assert.equal(await _SoldUnits(product), 1500, "1.5 units should be sold totally (1500 miliunits");
+    });
+
+    it("buy smallest possible unit", async function() {
+        await product.buy("Buy0.001", false, price1, {from:user1, value: price1/Denominator});
+        assert.equal(await product.getTotalPurchases.call(), 3, "3 purchases should be made");
+
+        var purchase = await product.getPurchase.call(2);
+        assert.equal(getPurchaseUnits(purchase), 1, "0.001 units should be bought during last purchase (1 miliunit");
+
+        assert.equal(await _SoldUnits(product), 1501, "1.501 units should be sold totally (1501 miliunits");
+    });
+    
+    it("buy less than smallest unit, should fail", async function() {
+        try {
+            await product.buy("Buy-", false, price1, {from:user1, value: 2});
+        } catch (e) {
+            return true;
+        }
+        throw "should fail";
+    });
+
+    it("overpay", async function() {
+        assert.equal(await product.getPendingWithdrawal.call(user2), 0, "Should be no pending withdrawals");
+
+        let overpay = 3;
+        await product.buy("BuyOverpay", false, price1, {from:user2, value: +overpay + 2*price1 });
+        assert.equal(await product.getTotalPurchases.call(), 4, "4 purchases should be made");
+
+        var purchase = await product.getPurchase.call(3);
+        assert.equal(getPurchaseUnits(purchase), 2000, "2 units should be bought during last purchase (2000 miliunits");
+
+        assert.equal(await _SoldUnits(product), 3501, "3.501 units should be sold totally (3501 miliunits");
+        assert.equal(await product.getPendingWithdrawal.call(user2), 3, "Pending withdrawals should equal 3");
+    });
+})
