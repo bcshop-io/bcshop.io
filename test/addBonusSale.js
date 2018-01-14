@@ -135,6 +135,10 @@ Additional 1% bonus for the first 24 h
         // await btoken.mint(investor1, 50);
         assert.equal(await sale.investSteps.call(0), investSteps[0], "Invalid investsteps[0]");
         assert.equal(await sale.bonusPctSteps.call(0), 2, "Invalid pctsteps[0]");
+
+        assert.equal(await sale.maxDecreasePct.call(), 6, "Invalid max decreasepct");
+        assert.equal(await sale.decreaseStepPct.call(), 2, "Invalid decreasepct");
+        assert.equal(await sale.stepDuration.call(), 7*86400, "Invalid step duration");
     });
 
     // it("transfer bcs tokens to the sale in amount equal to total promo tokens", async function() {
@@ -146,7 +150,7 @@ Additional 1% bonus for the first 24 h
     // });
     
     it("check initial state, should be BeforeStart (1)", async function() {
-        assert.equal(await sale.getState.call(), 1, "State should be BeforeStart");
+        assert.equal(await sale.getState.call(), 1, "State should be BeforeStart");        
     });
 
     it("try to invest too early, should fail", async function() {
@@ -241,6 +245,7 @@ Additional 1% bonus for the first 24 h
     });
 
     checkBonuses(18, "1st period, after 24h");
+    testInvestment(investor2, 2*OneEther, 20, "Ether bonus");
 
     it("advance time ahead on one period and check state", async function() {
         await utils.timeTravelAndMine(StepDurationDays * 86400);
@@ -296,6 +301,7 @@ Additional 1% bonus for the first 24 h
         console.log("Total invested " + totalInvested.toString());
         console.log("Total investments " + totalInvestments.toString());
         assert.equal(await web3.eth.getBalance(beneficiary), +oldBalance + totalInvested, "Invalid investmenst withdrawn");        
+        assert.equal(await web3.eth.getBalance(sale.address), 0, "Sale should contain 0 eth");
     });
     
 
@@ -445,7 +451,7 @@ contract("BCSAddBonusCrowdsale, failed sale", function(accounts) {
                         (await sale.minimumGoalInWei.call()).toNumber(),
                         "Invested amount should be less than needed");
     });
-
+    
     // it("some people invest with Promo tokens", async function() {
     //     await btoken.transfer(sale.address, 1, {from:binvestor1});
     //     assert.equal(await _TB(binvestor1), await _RT(1), "Promo token investor should get 1 BCS");
