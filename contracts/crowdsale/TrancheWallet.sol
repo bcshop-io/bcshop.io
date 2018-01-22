@@ -1,8 +1,9 @@
 pragma solidity ^0.4.10;
 
-import './LockableWallet.sol';
+import "../common/Owned.sol";
 
-contract TrancheWallet is LockableWallet {
+/**@dev Distributes some amount of currency in small portions available to withdraw once in a period */
+contract TrancheWallet is Owned {
     address public beneficiary;         //funds are to withdraw to this account
     uint256 public tranchePeriodInDays; //one tranche 'cooldown' time
     uint256 public trancheAmountPct;    //one tranche amount 
@@ -27,19 +28,24 @@ contract TrancheWallet is LockableWallet {
         completeUnlockTime = 0;
     }
 
-    /**@dev Locks all funds on account so that it's possible to withdraw only specific tranche amount.
-    * Funds will be unlocked completely in a given amount of days */
-    function lock(uint256 lockPeriodInDays) managerOnly {
-        initialFunds = this.balance;
+    /**@dev Sets new beneficiary to receive funds */
+    function setBeneficiary(address newBeneficiary) public ownerOnly {
+        beneficiary = newBeneficiary;
+    }
+
+    //Locks all funds on account so that it's possible to withdraw only specific tranche amount.
+    //Funds will be unlocked completely in a given amount of days 
+    //Can be made only one time
+    function lock(uint256 lockPeriodInDays) public ownerOnly {
+        require(lockStart == 0);
+
+        initialFunds = currentBalance();//this.balance;
         lockStart = now;
         completeUnlockTime = lockPeriodInDays * 1 days + lockStart;
-        //completeUnlockTime = lockPeriodInDays * 1 minutes + lockStart;
     }
 
     /**@dev Sends available tranches to beneficiary account*/
     function sendToBeneficiary() {
-        require(this.balance > 0);
-
         uint256 amountToWithdraw;
         uint256 tranchesToSend;
         (amountToWithdraw, tranchesToSend) = amountAvailableToWithdraw();
@@ -47,28 +53,27 @@ contract TrancheWallet is LockableWallet {
         require(amountToWithdraw > 0);
 
         tranchesSent += tranchesToSend;
-        beneficiary.transfer(amountToWithdraw);
+        doTransfer(amountToWithdraw);
 
         Withdraw(amountToWithdraw, tranchesSent);
     }
 
     /**@dev Calculates available amount to withdraw */
-    function amountAvailableToWithdraw() constant returns (uint256 amount, uint256 tranches) {
-        if(this.balance > 0) {
+    function amountAvailableToWithdraw() constant returns (uint256 amount, uint256 tranches) {        
+        if (currentBalance() > 0) {
             if(now > completeUnlockTime) {
                 //withdraw everything
-                amount = this.balance;
+                amount = currentBalance();
                 tranches = 0;
             } else {
-                //withdraw tranche
-                //uint256 monthsSinceLock = (now - lockStart) / (3600 * 24 * tranchePeriodInDays);
+                //withdraw tranche                
                 uint256 periodsSinceLock = (now - lockStart) / (tranchePeriodInDays * 1 days);
                 tranches = periodsSinceLock - tranchesSent + 1;                
                 amount = tranches * oneTrancheAmount();
 
                 //check if exceeding current limit
-                if(amount > this.balance) {
-                    amount = this.balance;
+                if(amount > currentBalance()) {
+                    amount = currentBalance();
                     tranches = amount / oneTrancheAmount();
                 }
             }
@@ -83,6 +88,9 @@ contract TrancheWallet is LockableWallet {
         return trancheAmountPct * initialFunds / 100; 
     }
 
-    /**@dev Allows to receive ether */
-    function() payable {}
+    /**@dev Returns current balance to be distributed to portions*/
+    function currentBalance() internal constant returns(uint256);
+
+    /**@dev Transfers given amount of currency to the beneficiary */
+    function doTransfer(uint256 amount) internal;
 }
