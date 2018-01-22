@@ -191,7 +191,7 @@ contract("CustomTrancheWallet. Creation constraints. ", function(accounts) {
     function exceptionOnCreation(comment, _unlockDates, _unlockAmounts) {
         it(comment, async function() {
             try {
-                wallet = await Wallet.new(token.address, beneficiary, [], []);
+                wallet = await Wallet.new(token.address, beneficiary, _unlockDates, _unlockAmounts);
             } catch (e) {                
                 if(e.toString().indexOf("VM Exception while processing transaction: revert") != -1) {
                     return true;
@@ -245,7 +245,7 @@ contract("CustomTrancheWallet. SetParams constraints. ", function(accounts) {
     function exceptionOnSetParams(comment, _unlockDates, _unlockAmounts) {
         it(comment, async function() {
             try {
-                await wallet.setParams(beneficiary, [], []);
+                await wallet.setParams(beneficiary, _unlockDates, _unlockAmounts);
             } catch (e) {                
                 if(e.toString().indexOf("VM Exception while processing transaction: revert") != -1) {
                     return true;
@@ -279,6 +279,21 @@ contract("CustomTrancheWallet. SetParams constraints. ", function(accounts) {
         [+utils.currentTime() + oneHour, +utils.currentTime() + 2 * oneHour],
         [1100, 500]);
 
+    it("can't setParams as not owner", async function() {
+        try {
+            let currentTime = utils.currentTime();
+            await wallet.setParams(
+                beneficiary, 
+                [currentTime + oneHour, currentTime + 2 * oneHour, currentTime + 3 * oneHour],
+                [100, 500, 2000],
+                {from:accounts[2]});
+        } catch (e) {                
+            if(e.toString().indexOf("VM Exception while processing transaction: revert") != -1) {
+                return true;
+            }
+        }
+        throw "Should fail";
+    });
 
     it("setParams successfully", async function() {
         let currentTime = utils.currentTime();
@@ -328,6 +343,18 @@ contract("CustomTrancheWallet. Lock constraints. ", function(accounts) {
             await wallet.lock();
         } catch(e) {
             return true;
+        }
+        throw "Should fail";
+    });
+
+    it("can't lock as not owner", async function() {
+        try {          
+            await token.transfer(wallet.address, 1000);  
+            await wallet.lock({from:accounts[2]});
+        } catch (e) {            
+            if(e.toString().indexOf("VM Exception while processing transaction: revert") != -1) {
+                return true;
+            }
         }
         throw "Should fail";
     });
