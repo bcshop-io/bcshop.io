@@ -47,24 +47,6 @@ contract("CustomTrancheWallet. Normal usage. 3 periods. ", function(accounts) {
         wallet = await Wallet.new(token.address, beneficiary, unlockDates, unlockAmounts);
     });
 
-    // function checkAmountToWithdrawOnDate(name, timestamp, expected) {        
-    //     it(name, async function() {            
-    //         assert.equal(
-    //             (await wallet.amountToWithdrawOnDate(timestamp)).toNumber(), 
-    //             expected, 
-    //             "Available amount should equal " + expected);
-    //     });
-    // }
-        // checkAmountToWithdrawOnDate(
-    //     "amount before first period should still equal 0",
-    //     utils.currentTime() + onePeriod / 2,
-    //     0);    
-
-    // checkAmountToWithdrawOnDate(
-    //     "amount after first period should equal unlockAmounts[0]",
-    //     utils.currentTime() + onePeriod + 10,
-    //     500);  
-
     it("initial amount to withdraw should be 0", async function() {
         await checkAvailableAmount(0);        
     });
