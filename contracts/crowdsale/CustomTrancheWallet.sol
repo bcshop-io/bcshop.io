@@ -97,7 +97,6 @@ contract CustomTrancheWallet is Owned {
 
     /**@dev Changes unlock schedule, can be called only by the owner and if funds are not locked*/
     function setParams(        
-        address _beneficiary, 
         uint256[] _unlockDates, 
         uint256[] _unlockAmounts
     ) 
@@ -105,11 +104,15 @@ contract CustomTrancheWallet is Owned {
     ownerOnly 
     {
         require(!locked);        
-        
-        beneficiary = _beneficiary;
+
         unlockDates = _unlockDates;
         unlockAmounts = _unlockAmounts;
 
         require(paramsValid());
     }    
+
+    /**@dev Sets new beneficiary, can be called only by the owner */
+    function setBeneficiary(address _beneficiary) public ownerOnly {
+        beneficiary = _beneficiary;
+    }
 }

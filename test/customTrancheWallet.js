@@ -8,6 +8,7 @@ let utils = new (require("./timeutils.js"))(web3);
 const TokenCap = 10000;
 const Decimals = 0;
 
+let oneHour = 3600;
 let wallet;
 let token;
 
@@ -93,7 +94,7 @@ contract("CustomTrancheWallet. Normal usage. 3 periods. ", function(accounts) {
         assert.equal(await wallet.alreadyWithdrawn.call(), unlockAmounts[1], "Invalid withdrawn amont");
     });
 
-    it("complete lock period passed, amount should equal to all the balance - withdrawn", async function() {
+    it("complete lock period passed, amount should equal unlockAmounts[2]-unlockAmounts[1]", async function() {
         await utils.timeTravelAndMine(onePeriod);
         await checkAvailableAmount(unlockAmounts[2]-unlockAmounts[1]);
     });
@@ -161,9 +162,7 @@ contract("CustomTrancheWallet. Normal usage. 1 period. ", function(accounts) {
 contract("CustomTrancheWallet. Creation constraints. ", function(accounts) {
 
     let owner = accounts[0];
-    let beneficiary = accounts[1];
-    let wallet;    
-    let oneHour = 3600;
+    let beneficiary = accounts[1];    
 
     beforeEach(async function() {
         token = await Token.new(TokenCap, Decimals);
@@ -209,13 +208,38 @@ contract("CustomTrancheWallet. Creation constraints. ", function(accounts) {
 });
 
 
+contract("CustomTrancheWallet. SetBeneficiary constraints. ", function(accounts) {
+    let owner = accounts[0];
+    let beneficiary1 = accounts[1];
+    let beneficiary2 = accounts[2];    
+
+    beforeEach(async function() {
+        token = await Token.new(TokenCap, Decimals);
+        await token.setLockedState(false);
+
+        wallet = await Wallet.new(token.address, beneficiary1, [utils.currentTime() + oneHour], [1000]);
+    });
+
+    it("setBeneficiary successfully", async function() {
+        assert.equal(await wallet.beneficiary.call(), beneficiary1, "Invalid initial beneficiary");
+        await wallet.setBeneficiary(beneficiary2);
+        assert.equal(await wallet.beneficiary.call(), beneficiary2, "Invalid new beneficiary");
+    });
+
+    it("can's call setBeneficiary as not owner", async function() {
+        try {
+            await wallet.setBeneficiary(beneficiary2, {from:accounts[4]});
+        } catch (e) {
+            return true;
+        }
+        throw "Should fail";
+    });
+});
 
 contract("CustomTrancheWallet. SetParams constraints. ", function(accounts) {
 
     let owner = accounts[0];
-    let beneficiary = accounts[1];
-    let wallet;    
-    let oneHour = 3600;
+    let beneficiary = accounts[1];    
 
     beforeEach(async function() {
         token = await Token.new(TokenCap, Decimals);
@@ -227,7 +251,7 @@ contract("CustomTrancheWallet. SetParams constraints. ", function(accounts) {
     function exceptionOnSetParams(comment, _unlockDates, _unlockAmounts) {
         it(comment, async function() {
             try {
-                await wallet.setParams(beneficiary, _unlockDates, _unlockAmounts);
+                await wallet.setParams(_unlockDates, _unlockAmounts);
             } catch (e) {                
                 if(e.toString().indexOf("VM Exception while processing transaction: revert") != -1) {
                     return true;
@@ -265,7 +289,6 @@ contract("CustomTrancheWallet. SetParams constraints. ", function(accounts) {
         try {
             let currentTime = utils.currentTime();
             await wallet.setParams(
-                beneficiary, 
                 [currentTime + oneHour, currentTime + 2 * oneHour, currentTime + 3 * oneHour],
                 [100, 500, 2000],
                 {from:accounts[2]});
@@ -280,13 +303,16 @@ contract("CustomTrancheWallet. SetParams constraints. ", function(accounts) {
     it("setParams successfully", async function() {
         let currentTime = utils.currentTime();
         await wallet.setParams(
-            beneficiary, 
             [currentTime + oneHour, currentTime + 2 * oneHour, currentTime + 3 * oneHour],
             [100, 500, 2000]);
 
         assert.equal(await wallet.unlocksCount.call(), 3, "Unlocks count should be changed");
-        assert.equal(await wallet.unlockDates.call(1), currentTime + 2 * oneHour, "Invalid unlock dates");
-        assert.equal(await wallet.unlockAmounts.call(2), 2000, "Invalid unlock amounts");
+        assert.equal(await wallet.unlockDates.call(0), currentTime + oneHour, "Invalid unlock dates[0]");
+        assert.equal(await wallet.unlockDates.call(1), currentTime + 2 * oneHour, "Invalid unlock dates[1]");
+        assert.equal(await wallet.unlockDates.call(2), currentTime + 3 * oneHour, "Invalid unlock dates[2]");
+        assert.equal(await wallet.unlockAmounts.call(0), 100, "Invalid unlock amounts[0]");
+        assert.equal(await wallet.unlockAmounts.call(1), 500, "Invalid unlock amounts[1]");
+        assert.equal(await wallet.unlockAmounts.call(2), 2000, "Invalid unlock amounts[2]");
     });
 });
 
@@ -294,9 +320,7 @@ contract("CustomTrancheWallet. SetParams constraints. ", function(accounts) {
 
 contract("CustomTrancheWallet. Lock constraints. ", function(accounts) {
     let owner = accounts[0];
-    let beneficiary = accounts[1];
-    let wallet;    
-    let oneHour = 3600;
+    let beneficiary = accounts[1];        
 
     beforeEach(async function() {
         token = await Token.new(TokenCap, Decimals);
@@ -360,7 +384,6 @@ contract("CustomTrancheWallet. Lock constraints. ", function(accounts) {
 
         try {
             await wallet.setParams(
-                beneficiary, 
                 [currentTime + oneHour, currentTime + 2 * oneHour, currentTime + 3 * oneHour],
                 [100, 500, 2000]);
         } catch(e) {
