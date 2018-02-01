@@ -4,6 +4,7 @@ import "../common/SafeMathLib.sol";
 import "../common/Manageable.sol";
 import "./IProductStorage.sol";
 import "./IFeePolicy.sol";
+import "./IPurchaseHandler.sol";
 
 /**@dev This contact accepts payments for products and transfers ether to all the parties */
 contract ProductPayment is Manageable {
@@ -14,14 +15,15 @@ contract ProductPayment is Manageable {
     //Events
 
     //emitted during purchase process. Id is 0-based index of purchase in the engine.purchases array
-    event ProductBought(address indexed buyer, string clientId, uint256 price, uint256 paidUnits);
-
+    event ProductBought(address indexed buyer, uint256 indexed productId, string clientId, uint256 price, uint256 paidUnits);
+    event OverpayStored(address indexed buyer, uint256 indexed productId, uint256 amount);
 
 
     //
     // Storage data
-    IProductStorage productStorage;
-    IFeePolicy defaultFeePolicy;
+    IProductStorage public productStorage;
+    IFeePolicy public defaultFeePolicy;
+    mapping (address => uint256) public pendingWithdrawals; 
 
 
     //
@@ -37,17 +39,16 @@ contract ProductPayment is Manageable {
         defaultFeePolicy = _defaultFeePolicy;
     }
     
-    /**@dev 
-    Calculates and returns payment details: how many units are bought, 
+    /**@dev Calculates and returns payment details: how many units are bought, 
      what part of ether should be paid and what part should be returned to buyer  */
     function calculatePaymentDetails(uint256 productId, uint256 weiAmount, bool acceptLessUnits) 
         public
         constant
         returns(uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
     {
-        var (price, maxUnits, soldUnits, denominator) = productStorage.getProductData(productId);
+        var (price, maxUnits, soldUnits) = productStorage.getProductData(productId);
 
-        unitsToBuy = weiAmount.safeMult(denominator).safeDiv(price);
+        unitsToBuy = weiAmount.safeDiv(price);
         
         //if product is limited and it's not enough to buy, check acceptLessUnits flag
         if (maxUnits > 0 && soldUnits + unitsToBuy > maxUnits) {
@@ -58,12 +59,13 @@ contract ProductPayment is Manageable {
             }
         }
         
-        etherToReturn = weiAmount.safeSub(price.safeMult(unitsToBuy).safeDiv(denominator));
+        etherToReturn = weiAmount.safeSub(price.safeMult(unitsToBuy));
         etherToPay = weiAmount.safeSub(etherToReturn);
     } 
 
-    /**@dev 
-    Buy product. Send ether with this function in amount equal to desirable product quantity total price */
+    /**@dev Buys product. Send ether with this function in amount equal to 
+    desirable product quantity total price. Buyer explicitly passed as parameter 
+    as that leaves opportunity for another contract to buy product for someone else */
     function buy(
         uint256 productId, 
         address buyer,
@@ -72,6 +74,7 @@ contract ProductPayment is Manageable {
         uint256 currentPrice
     ) 
         public
+        payable
     {
         require(productId < productStorage.getTotalProducts());
         uint256 price = productStorage.getProductPrice(productId);
@@ -85,57 +88,44 @@ contract ProductPayment is Manageable {
         //check if there is enough units to buy
         require(unitsToBuy > 0);
 
-        ////store overpay to withdraw later
-        // if (etherToReturn > 0) {
-        //     self.pendingWithdrawals[msg.sender] = self.pendingWithdrawals[msg.sender].safeAdd(etherToReturn);
-        // }
-        sendEther(productId, etherToPay);
+        //store overpay to withdraw later
+         if (etherToReturn > 0) {
+            pendingWithdrawals[buyer] = pendingWithdrawals[buyer].safeAdd(etherToReturn);
+            OverpayStored(buyer, productId, etherToReturn);
+        }
+
+        var (wallet, feePolicy) = productStorage.getProductPaymentData(productId);
         
+        sendEther(wallet, IFeePolicy(feePolicy), etherToPay);
         productStorage.addPurchase(productId, buyer, price, unitsToBuy, clientId);
-        // uint256 pid = self.purchases.length++;
-        // IProductEngine.Purchase storage p = self.purchases[pid];
-        // p.id = pid;
 
-        // if (self.userRating[msg.sender] == 0) {
-        //     self.userRating[msg.sender] = pid + 1;
-        // }
-
-        // self.soldUnits = self.soldUnits + unitsToBuy;
-        
-
-
-        // ProductBoughtEx(self.purchases.length - 1, msg.sender, clientId, self.price, unitsToBuy);
-        //ProductBought(msg.sender, uint32(unitsToBuy), clientId);
+        // TODO Rating
+        ProductBought(buyer, productId, clientId, price, unitsToBuy);
     }
 
+    /**@dev Call this to return all previous overpays */
+    function withdrawOverpay() public {
+        uint amount = pendingWithdrawals[msg.sender];        
+        require(amount > 0);
 
+        pendingWithdrawals[msg.sender] = 0;
+        msg.sender.transfer(amount);
+    }
+    
     /**@dev Sends ether to vendor and provider */
-    function sendEther(uint256 productId, uint256 etherToPay) internal {
-        var (wallet, feePolicy, postProcessor) = productStorage.getProductPaymentData(productId);
-        
-        if (feePolicy == 0) {
+    function sendEther(address wallet, IFeePolicy feePolicy, uint256 etherToPay) internal {
+        if (address(feePolicy) == 0x0) {
             feePolicy = defaultFeePolicy;
         }
         
         uint256 etherToProvider;
         uint256 etherToVendor;
         if (etherToPay > 0) {
-            etherToProvider = IFeePolicy(feePolicy).getFeeAmount(etherToPay);        
+            etherToProvider = feePolicy.getFeeAmount(etherToPay);        
             etherToVendor = etherToPay.safeSub(etherToProvider);
             
-            IFeePolicy(feePolicy).sendFee.value(etherToProvider)();
+            feePolicy.sendFee.value(etherToProvider)();
             wallet.transfer(etherToVendor);
         }
     }
-    /**@dev 
-    Call this to return all previous overpays */
-    // function withdrawOverpay(IProductEngine.ProductData storage self) public {
-    //     uint amount = self.pendingWithdrawals[msg.sender];        
-    //     self.pendingWithdrawals[msg.sender] = 0;
-
-    //     if (!msg.sender.send(amount)) {
-    //         self.pendingWithdrawals[msg.sender] = amount;
-    //     }
-    // }
-
 }
