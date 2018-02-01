@@ -9,6 +9,9 @@ contract IProductStorage {
     function getTotalProducts() public constant returns(uint256) 
     {}
 
+    function getTextData(uint256 productId) public constant returns(string name, string data) 
+    {}
+
     /**@dev Returns information about purchase with given index for the given product */
     function getProductData(uint256 productId) 
         public
@@ -16,8 +19,7 @@ contract IProductStorage {
         returns(
             uint256 price, 
             uint256 maxUnits, 
-            uint256 soldUnits,
-            uint256 denominator
+            uint256 soldUnits
         ) 
     {}
 
@@ -36,8 +38,7 @@ contract IProductStorage {
         constant
         returns(
             address wallet,
-            address feePolicy,
-            address postProcessor
+            address feePolicy
         )
     {}
 
@@ -70,49 +71,41 @@ contract IProductStorage {
     {}
 
     /**@dev Returns information about purchase with given index for the given product */
-    function getPurchase(uint256 productId, uint256 purchaseId) 
-        public
-        constant         
-        returns(address buyer, string clientId, uint256 price, uint256 paidUnits, bool delivered, bool badRating) 
-    {}
-
-    // /**@dev Returns purchase/rating structure index for the given product */
-    // function getUserRatingIndex(uint256 productId, address user) public constant returns (uint256) 
+    // function getPurchase(uint256 productId, uint256 purchaseId) 
+    //     public
+    //     constant         
+    //     returns(address buyer, string clientId, uint256 price, uint256 paidUnits) 
     // {}
-
-    // /**@dev Returns pending withdrawal of given buyer for the given product */
-    // function getPendingWithdrawal(uint256 productId, address buyer) public constant returns(uint256) 
-    // {} 
-
 
     /**@dev Adds new product to the storage */
     function createProduct(
         address owner, 
         address wallet, 
         uint256 price, 
-        uint256 maxUnits, 
-        uint256 denominator,
+        uint256 maxUnits,
         uint256 startTime, 
         uint256 endTime, 
         address feePolicy,
-        address postProcessor,
-        string name
+        string name,
+        string data
     ) public;
 
     /**@dev Edits product in the storage */   
     function editProduct(
         uint256 productId,
-        address owner, 
         address wallet, 
         uint256 price, 
         uint256 maxUnits, 
-        uint256 denominator,
+        bool isActive,
+        uint256 soldUnits,        
         uint256 startTime, 
-        uint256 endTime, 
-        address feePolicy,
-        address postProcessor,
-        string name
+        uint256 endTime,         
+        string name,
+        string data
     ) public;
+
+    /**@dev Sets product's "handlers" parameters */
+    function setCustomParams(uint256 productId, address feePolicy) public;
 
     /**@dev  Adds new purchase to the list of given product */
     function addPurchase(
@@ -121,11 +114,5 @@ contract IProductStorage {
         uint256 price,         
         uint256 paidUnits,        
         string clientId   
-    ) public;
-
-    /**@dev  Sets delivered state */
-    //function setDeliveredState(uint256 productId, uint256 purchaseId, bool state) public;
-    
-    /**@dev  Sets new rating state */
-    //function setBadRating(uint256 productId, uint256 purchaseId, bool badRating) public;
+    ) public;    
 }

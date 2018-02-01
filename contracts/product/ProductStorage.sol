@@ -1,45 +1,31 @@
 pragma solidity ^0.4.18;
 
+import "../common/SafeMathLib.sol";
 import "../common/Manageable.sol";
 import "./IProductStorage.sol";
 
+/**@dev Contract that stores all products' data. Contains simple methods for retrieving and changing products */
 contract ProductStorage is Manageable, IProductStorage {
     
+    using SafeMathLib for uint256;
+
     //
     //Inner type
 
     //Purchase information
-    struct Purchase {        
+    struct Purchase {
         //who made a purchase
         address buyer; 
         //unit price at the moment of purchase
         uint256 price; 
         //how many units bought
-        uint256 paidUnits;
-        //true if purchase was delivered 
-        bool delivered; 
-        //true if user changed rating to 'bad'
-        bool badRating; 
+        uint256 paidUnits;        
         //product-specific client id
         string clientId;         
     }
 
     /**@dev
-    Storage data of product
-    1. A couple of words on 'denominator'. It shows how many smallest units can 1 unit be splitted into.
-    'price' field still represents price per one unit. One unit = 'denominator' * smallest unit. 
-    'maxUnits', 'soldUnits' and 'paidUnits' show number of smallest units. 
-    For simple products which can't be fractioned 'denominator' should equal 1.
-
-    For example: denominator = 1,000, 'price' = 100,000. 
-    a. If user pays for one product (100,000), his 'paidUnits' field will be 1000.
-    b. If 'buy' function receives 50,000, that means user is going to buy
-        a half of the product, and 'paidUnits' will be calculated as 500.
-    c.If 'buy' function receives 100, that means user wants to buy the smallest unit possible
-        and 'paidUnits' will be 1;
-        
-    Therefore 'paidUnits' = 'weiReceived' * 'denominator' / 'price'
-    */
+    Storage data of product */
     struct ProductData {    
         //product's creator
         address owner;
@@ -53,24 +39,19 @@ contract ProductStorage is Manageable, IProductStorage {
         bool isActive;
         //how many units already sold
         uint256 soldUnits;
-        //this shows how many decimal digits the smallest unit fraction can hold
-        uint256 denominator;
         //timestamp of the purchases start
         uint256 startTime;
         //timestamp of the purchases end
         uint256 endTime;
         //custom FeePolicy contract for the product, or 0 if default is used
         address feePolicy;
-        //custom payment PostProcessor contract, or 0 if non is used 
-        address postProcessor;
+        //number of purchases made so far
+        uint256 purchases;
         //name of the product 
         string name; 
-        //list of overpays to withdraw
-        mapping (address => uint256) pendingWithdrawals; 
+        string data;
         //array of purchase information
-        Purchase[] purchases; 
-        //index of first-purchase structure in Purchase[] array. Starts with 1 so you need to subtract 1 to get actual
-        mapping (address => uint256) userRating; 
+        //Purchase[] purchases;        
     }    
 
 
@@ -81,21 +62,39 @@ contract ProductStorage is Manageable, IProductStorage {
         address indexed owner, 
         address indexed wallet, 
         uint256 price, 
-        uint256 maxUnits, 
-        uint256 denominator,
+        uint256 maxUnits,         
         uint256 startTime, 
         uint256 endTime, 
-        address feePolicy,
-        address postProcessor,
-        string name
+        address feePolicy,        
+        string name,
+        string data
     );
 
     event PurchaseAdded(
-        uint256 indexed productId,        
+        uint256 indexed productId,
+        uint256 indexed id,
         address indexed buyer,    
         uint256 price,         
         uint256 paidUnits,        
         string clientId  
+    );
+
+    event ProductEdited(
+        uint256 indexed productId,        
+        address wallet, 
+        uint256 price, 
+        uint256 maxUnits, 
+        bool isActive,
+        uint256 soldUnits,      
+        uint256 startTime, 
+        uint256 endTime,         
+        string name,
+        string data
+    );
+
+    event CustomParamsSet(
+        uint256 indexed productId,
+        address feePolicy        
     );
 
 
@@ -105,7 +104,8 @@ contract ProductStorage is Manageable, IProductStorage {
 
     //List of all created products
     ProductData[] public products;
-
+    //true if [x] product is not allowed to be purchase
+    mapping(uint256=>bool) public banned;
     
 
     //
@@ -115,10 +115,10 @@ contract ProductStorage is Manageable, IProductStorage {
         _;
     }
 
-    modifier validPurchaseId(uint256 productId, uint256 purchaseId) {
-        require(purchaseId < products[productId].purchases.length);
-        _;
-    }
+    // modifier validPurchaseId(uint256 productId, uint256 purchaseId) {
+    //     require(purchaseId < products[productId].purchases);
+    //     _;
+    // }
     
     
     //
@@ -132,23 +132,37 @@ contract ProductStorage is Manageable, IProductStorage {
         return products.length;
     }
 
-    /**@dev Returns information about purchase with given index for the given product */
+    /**@dev Returns text information about product */
+    function getTextData(uint256 productId) 
+        public
+        constant
+        returns(            
+            string name, 
+            string data
+        ) 
+    {
+        ProductData storage p = products[productId];
+        return (            
+            p.name, 
+            p.data
+        );
+    }
+
+    /**@dev Returns information about product */
     function getProductData(uint256 productId) 
         public
         constant
         returns(            
             uint256 price, 
             uint256 maxUnits, 
-            uint256 soldUnits,
-            uint256 denominator            
+            uint256 soldUnits
         ) 
     {
         ProductData storage p = products[productId];
         return (            
             p.price, 
             p.maxUnits, 
-            p.soldUnits,
-            p.denominator            
+            p.soldUnits
         );
     }
 
@@ -175,15 +189,13 @@ contract ProductStorage is Manageable, IProductStorage {
         constant        
         returns(
             address wallet,
-            address feePolicy,
-            address postProcessor
+            address feePolicy
         )
     {
         ProductData storage p = products[productId];
         return (
             p.wallet,
-            p.feePolicy,
-            p.postProcessor
+            p.feePolicy
         );
     }
 
@@ -216,116 +228,101 @@ contract ProductStorage is Manageable, IProductStorage {
             (products[productId].endTime == 0 || now <= products[productId].endTime);
     }   
 
-
     /**@dev Returns total amount of purchase transactions for the given product */
     function getTotalPurchases(uint256 productId) 
         public 
         constant
         returns (uint256) 
     {
-        return products[productId].purchases.length;
+        return products[productId].purchases;        
     }
 
     /**@dev Returns information about purchase with given index for the given product */
-    function getPurchase(uint256 productId, uint256 purchaseId) 
-        public
-        constant         
-        returns(address buyer, string clientId, uint256 price, uint256 paidUnits, bool delivered, bool badRating) 
-    {
-        Purchase storage p = products[productId].purchases[purchaseId];
-        return (            
-            p.buyer,
-            p.clientId,
-            p.price,   
-            p.paidUnits,     
-            p.delivered,
-            p.badRating);
-    }
-
-    // /**@dev Returns purchase/rating structure index for the given product */
-    // function getUserRatingIndex(uint256 productId, address user)
+    // function getPurchase(uint256 productId, uint256 purchaseId) 
     //     public
-    //     constant 
-    //     returns (uint256)
-    // {        
-    //     return products[productId].userRating[user];
-    // }
-
-    // /**@dev Returns pending withdrawal of given buyer for the given product */
-    // function getPendingWithdrawal(uint256 productId, address buyer) 
-    //     public 
-    //     constant
-    //     returns(uint256) 
+    //     constant         
+    //     returns(address buyer, string clientId, uint256 price, uint256 paidUnits) 
     // {
-    //     return products[productId].pendingWithdrawals[buyer];
-    }    
-
+    //     Purchase storage p = products[productId].purchases[purchaseId];
+    //     return (            
+    //         p.buyer,
+    //         p.clientId,
+    //         p.price,   
+    //         p.paidUnits
+    //     );
+    // }
 
     /**@dev Adds new product to the storage */
     function createProduct(
         address owner, 
         address wallet, 
         uint256 price, 
-        uint256 maxUnits, 
-        uint256 denominator,
+        uint256 maxUnits,
         uint256 startTime, 
         uint256 endTime, 
         address feePolicy,
-        address postProcessor,
-        string name
+        string name,
+        string data
     ) 
-    public 
-    managerOnly
+        public 
+        managerOnly
     {
         ProductData storage product = products[products.length++];
         product.owner = owner;
         product.wallet = wallet;
         product.price = price;
         product.maxUnits = maxUnits;
-        product.denominator = denominator;
         product.startTime = startTime;
         product.endTime = endTime;
         product.isActive = true;
         product.feePolicy = feePolicy;
-        product.postProcessor = postProcessor;
         product.name = name;
-        
-        ProductAdded(owner, wallet, price, maxUnits, denominator, startTime, endTime, feePolicy, postProcessor, name);
+        product.data = data;
+        ProductAdded(owner, wallet, price, maxUnits, startTime, endTime, feePolicy, name, data);
     }
 
 
     /**@dev Edits product in the storage */   
     function editProduct(
-        uint256 productId,
-        address owner, 
+        uint256 productId,        
         address wallet, 
         uint256 price, 
         uint256 maxUnits, 
-        uint256 denominator,
+        bool isActive,
+        uint256 soldUnits,      
         uint256 startTime, 
-        uint256 endTime, 
-        address feePolicy,
-        address postProcessor,
-        string name
+        uint256 endTime,
+        string name,
+        string data
     ) 
-    public 
-    validProductId(productId)
-    managerOnly
+        public 
+        validProductId(productId)
+        managerOnly
     {
         ProductData storage product = products[productId];
-        product.owner = owner;
         product.wallet = wallet;
         product.price = price;
         product.maxUnits = maxUnits;
-        product.denominator = denominator;
         product.startTime = startTime;
         product.endTime = endTime;
-        product.isActive = true;
-        product.feePolicy = feePolicy;
-        product.postProcessor = postProcessor;
-        product.name = name;        
+        product.soldUnits = soldUnits;
+        product.isActive = isActive;
+        product.name = name;
+        product.data = data;
+        ProductEdited(productId, wallet, price, maxUnits, isActive, soldUnits, startTime, endTime, name, data);
     }
 
+    /**@dev Sets "handlers" parameters */
+    function setCustomParams(uint256 productId, address feePolicy) 
+        public 
+        managerOnly
+        validProductId(productId)
+    {
+        ProductData storage product = products[productId];
+        product.feePolicy = feePolicy;
+
+        CustomParamsSet(productId, feePolicy);
+    }
 
     /**@dev  Adds new purchase to the list of given product */
     function addPurchase(
@@ -335,48 +332,28 @@ contract ProductStorage is Manageable, IProductStorage {
         uint256 paidUnits,        
         string clientId   
     ) 
-    public 
-    managerOnly
-    validProductId(productId)
+        public 
+        managerOnly
+        validProductId(productId)
     {
-        Purchase storage purchase = products[productId].purchases[products[productId].purchases.length++];
-        purchase.buyer = buyer;
-        purchase.price = price;
-        purchase.paidUnits = paidUnits;
-        purchase.clientId = clientId;    
+        //Purchase storage purchase = products[productId].purchases[products[productId].purchases.length++];
+        // purchase.buyer = buyer;
+        // purchase.price = price;
+        // purchase.paidUnits = paidUnits;
+        // purchase.clientId = clientId;    
+        PurchaseAdded(product.purchases, productId, buyer, price, paidUnits, clientId);
         
-        PurchaseAdded(productId, buyer, price, paidUnits, clientId);
+        ProductData storage product = products[productId];
+        product.soldUnits = product.soldUnits.safeAdd(paidUnits);
+        product.purchases = product.purchases.safeAdd(1);            
     }
 
-
-    /**@dev  Sets delivered state */
-    // function setDeliveredState(
-    //     uint256 productId,
-    //     uint256 purchaseId,
-    //     bool state
-    // ) 
-    // public
-    // managerOnly
-    // validProductId(productId)
-    // validPurchaseId(productId, purchaseId)
-    // {
-    //     products[productId].purchases[purchaseId].delivered = state;
-    // }
-
-    // function setRatedPurchaseIndex(uint256 productId, address buyer)
-
-    
-    // /**@dev  Sets new rating state */
-    // function setBadRating(
-    //     uint256 productId,
-    //     uint256 purchaseId,
-    //     bool badRating
-    // ) 
-    // public
-    // managerOnly
-    // validProductId(productId)
-    // validPurchaseId(productId, purchaseId)
-    // {
-    //     products[productId].purchases[purchaseId].badRating = badRating;
-    // }
+    /**@dev marks product as banned. other contracts shoudl take this into account when interacting with product */
+    function banProduct(uint256 productId, bool state) 
+        public 
+        managerOnly
+        validProductId(productId)
+    {
+        banned[productId] = state;
+    }
 }
