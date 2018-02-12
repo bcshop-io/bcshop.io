@@ -28,7 +28,7 @@ contract FeePolicy is Owned {
     }
 
     /**@dev Returns total fee amount depending on payment */
-    function getFeeAmount(uint256 payment) public constant returns(uint256) {
+    function getFeeAmount(address owner, uint256 payment) public constant returns(uint256) {
         return payment * feePermille / MAXPERMILLE;
     }
 
