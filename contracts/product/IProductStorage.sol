@@ -4,115 +4,112 @@ pragma solidity ^0.4.18;
 contract IProductStorage {
 
     //
+    //Inner types
+    /**dev Purchase state 
+        0-finished. purchase is completed and can't be reverted, 
+        1-paid. can be complained using escrow.
+        2-complain. there was a complain
+        3-canceled. customer won the dispute and got eth back
+        4-pending. vendor can withdraw his funds from escrow
+    */
+    enum PurchaseState {Finished, Paid, Complain, Canceled, Pending}
+
+    //
     // Methods
 
-    function getTotalProducts() public constant returns(uint256) 
-    {}
+    function getTotalProducts() public constant returns(uint256);    
 
-    function getTextData(uint256 productId) public constant returns(string name, string data) 
-    {}
+    function getTextData(uint256 productId) public constant returns(string name, string data);    
 
     /**@dev Returns information about purchase with given index for the given product */
-    function getProductData(uint256 productId) 
-        public
-        constant
-        returns(
+    function getProductData(uint256 productId) public constant returns(
             uint256 price, 
             uint256 maxUnits, 
             uint256 soldUnits
-        ) 
-    {}
+        );    
 
-    function getProductActivityData(uint256 productId) 
-        public
-        constant
-        returns(
+    function getProductActivityData(uint256 productId) public constant returns(
             bool active,
             uint256 startTime,
             uint256 endTime
-        )
-    {}
-
-    function getProductPaymentData(uint256 productId) 
-        public
-        constant
-        returns(
-            address wallet,
-            address feePolicy
-        )
-    {}
+        );
 
     /**@dev Returns product's creator */
-    function getProductOwner(uint256 productId) 
-        public 
-        constant 
-        returns(address)
-    {}   
+    function getProductOwner(uint256 productId) public constant returns(address);    
 
     /**@dev Returns product's price in wei */
-    function getProductPrice(uint256 productId) 
-        public 
-        constant 
-        returns(uint256)
-    {}   
+    function getProductPrice(uint256 productId) public constant returns(uint256);    
 
-    function isProductActive(uint256 productId) 
-        public 
-        constant         
-        returns(bool)
-    {}   
+    function isEscrowUsed(uint256 productId) public constant returns(bool);
 
+    function isProductActive(uint256 productId) public constant returns(bool);
 
     /**@dev Returns total amount of purchase transactions for the given product */
-    function getTotalPurchases(uint256 productId) 
-        public 
-        constant
-        returns (uint256) 
-    {}
+    function getTotalPurchases(uint256 productId) public constant returns (uint256);    
 
     /**@dev Returns information about purchase with given index for the given product */
-    // function getPurchase(uint256 productId, uint256 purchaseId) 
-    //     public
-    //     constant         
-    //     returns(address buyer, string clientId, uint256 price, uint256 paidUnits) 
-    // {}
+    function getPurchase(uint256 productId, uint256 purchaseId) public constant returns(PurchaseState);    
+
+    /**@dev Returns escrow-related data for specified purchase */
+    function getEscrowData(uint256 productId, uint256 purchaseId)
+        public
+        constant
+        returns (address, uint256, uint256, uint256);    
+
+    /**@dev Returns wallet for specific vendor */
+    function getVendorWallet(address vendor) public constant returns(address);    
+
+    /**@dev Returns fee permille for specific vendor */
+    function getVendorFee(address vendor) public constant returns(int16);    
+
+    function setVendorInfo(address vendor, address wallet, int16 feePermille) public;        
 
     /**@dev Adds new product to the storage */
     function createProduct(
-        address owner, 
-        address wallet, 
+        address owner,         
         uint256 price, 
         uint256 maxUnits,
+        bool isActive,
         uint256 startTime, 
-        uint256 endTime, 
-        address feePolicy,
+        uint256 endTime,
+        bool useEscrow,
         string name,
         string data
     ) public;
 
     /**@dev Edits product in the storage */   
     function editProduct(
-        uint256 productId,
-        address wallet, 
+        uint256 productId,        
         uint256 price, 
         uint256 maxUnits, 
         bool isActive,
         uint256 soldUnits,        
         uint256 startTime, 
-        uint256 endTime,         
+        uint256 endTime,
+        bool useEscrow,
         string name,
         string data
     ) public;
-
-    /**@dev Sets product's "handlers" parameters */
-    function setCustomParams(uint256 productId, address feePolicy) public;
-
+    
     /**@dev  Adds new purchase to the list of given product */
     function addPurchase(
         uint256 productId,        
         address buyer,    
         uint256 price,         
-        uint256 paidUnits,        
+        uint256 paidUnits,
         string clientId   
-    ) public;    
+    ) public returns (uint256);    
+
+    /**@dev Changes purchase state */
+    function changePurchase(uint256 productId, uint256 purchaseId, PurchaseState state) public;
+
+    /**@dev Sets escrow data for specified purchase */
+    function setEscrowData(
+        uint256 productId, 
+        uint256 purchaseId, 
+        address customer, 
+        uint256 fee, 
+        uint256 profit, 
+        uint256 timestamp
+    ) public;
 }

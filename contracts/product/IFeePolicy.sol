@@ -5,8 +5,8 @@ pragma solidity ^0.4.18;
 contract IFeePolicy {
 
     /**@dev Returns total fee amount depending on payment */
-    function getFeeAmount(uint256 payment) public constant returns(uint256) {}
+    function calculateFeeAmount(address owner, uint256 payment) public returns(uint256);
 
     /**@dev Sends fee amount to service provider  */
-    function sendFee() external payable;
+    function sendFee() public payable;
 }

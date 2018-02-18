@@ -9,14 +9,14 @@ contract ProductMaker is Owned {
     // Events
     event ProductCreated
     (
-        address indexed owner,
-        address indexed wallet,
-        uint256 price,
-        uint256 maxUnits,        
+        address indexed owner, 
+        uint256 price, 
+        uint256 maxUnits,
         uint256 startTime, 
         uint256 endTime, 
-        address feePolicy,        
-        string name
+        bool useEscrow,
+        string name,
+        string data
     );
 
 
@@ -33,74 +33,63 @@ contract ProductMaker is Owned {
         productStorage = _productStorage;
     }
 
+    /**@dev Creates product. Can be called by end user */
     function createSimpleProduct(
-        address wallet, 
         uint256 price, 
-        uint256 maxUnits,         
+        uint256 maxUnits,
+        bool isActive,
         uint256 startTime, 
         uint256 endTime,
+        bool useEscrow,
         string name,
         string data
     ) 
         public
     {
-        productStorage.createProduct(msg.sender, wallet, price, maxUnits, startTime, endTime, 0, name, data);
-        
-        ProductCreated(msg.sender, wallet, price, maxUnits, startTime, endTime, 0, name);
+        productStorage.createProduct(msg.sender, price, maxUnits, isActive, startTime, endTime, useEscrow, name, data);
+        //ProductCreated(msg.sender, price, maxUnits, startTime, endTime, 0, name, data);
     }
 
-    /**@dev Creates product with non-default feePolicy and/or purchaseHandler */
-    function createSpecialProduct(
-        address owner, 
-        address wallet, 
+    /**@dev Creates product and enters the information about vendor wallet. Can be called by end user */
+    function createSimpleProductAndVendor(
+        address wallet,
         uint256 price, 
-        uint256 maxUnits,         
+        uint256 maxUnits,
+        bool isActive,
         uint256 startTime, 
         uint256 endTime,
-        address feePolicy,
+        bool useEscrow,
         string name,
         string data
     ) 
         public
-        ownerOnly
     {
-        productStorage.createProduct(
-            owner, 
-            wallet, 
-            price, 
-            maxUnits,
-            startTime, 
-            endTime, 
-            feePolicy, 
-            name,
-            data);
-        
-        ProductCreated(owner, wallet, price, maxUnits, startTime, endTime, feePolicy, name);
+        productStorage.setVendorInfo(msg.sender, wallet, productStorage.getVendorFee(msg.sender));   
+        productStorage.createProduct(msg.sender, price, maxUnits, isActive, startTime, endTime, useEscrow, name, data);
+        //ProductCreated(msg.sender, price, maxUnits, startTime, endTime, 0, name, data);
     }
 
     /**@dev Edits product in the storage */   
     function editSimpleProduct(
-        uint256 productId,
-        address wallet, 
+        uint256 productId,        
         uint256 price, 
         uint256 maxUnits, 
         bool isActive,
-        uint256 soldUnits,
+        uint256 soldUnits,      
         uint256 startTime, 
-        uint256 endTime,        
+        uint256 endTime,
+        bool useEscrow,
         string name,
         string data
     ) 
         public    
     {
         require(msg.sender == productStorage.getProductOwner(productId));
-        productStorage.editProduct(productId, wallet, price, maxUnits, isActive, soldUnits, startTime, endTime, name, data);        
+        productStorage.editProduct(productId, price, maxUnits, isActive, soldUnits, startTime, endTime, useEscrow, name, data);        
     }
 
-    function setCustomParams(uint256 productId, address feePolicy) 
-        public
-        ownerOnly 
-    {
-        productStorage.setCustomParams(productId, feePolicy);
+    /**@dev Changes vendor wallet for profit */
+    function setVendorWallet(address wallet) public {
+        productStorage.setVendorInfo(msg.sender, wallet, productStorage.getVendorFee(msg.sender));
     }
 }
