@@ -2,11 +2,12 @@ pragma solidity ^0.4.18;
 
 import "../common/SafeMathLib.sol";
 import "../common/Manageable.sol";
+import "../token/IERC20Token.sol";
 import "./IProductStorage.sol";
 import "./IFeePolicy.sol";
 import "./IPurchaseHandler.sol";
 import "./IDiscountPolicy.sol";
-
+import "./IBancorConverter.sol";
 
 /**@dev This contact accepts payments for products and transfers ether to all the parties */
 contract ProductPayment is Manageable {
@@ -25,108 +26,69 @@ contract ProductPayment is Manageable {
     // Storage data
 
     IProductStorage public productStorage;
-    IFeePolicy public defaultFeePolicy;
+    IFeePolicy public feePolicy;
     IDiscountPolicy public discountPolicy;
-    //mapping (address => uint256) public pendingWithdrawals; 
-
-
+    //token that can be used as payment tool
+    IERC20Token public token;
+    // Bancor quick converter to convert BCS to ETH. Important: this is NOT a BancorConverter contract.
+    // This must be set to the corresponding BancorConverter.extensions.quickConverter   
+    IBancorConverter public converter;
+    // escrow payment hold time in seconds 
+    uint256 public escrowHoldTime; 
+    address[] public convertPath;
 
     //
     // Methods
 
     function ProductPayment(
         IProductStorage _productStorage, 
-        IFeePolicy _defaultFeePolicy, 
-        IDiscountPolicy _discountPolicy
+        IFeePolicy _feePolicy, 
+        IDiscountPolicy _discountPolicy,
+        IERC20Token _token,
+        IBancorConverter _converter,
+        uint256 _escrowHoldTime
     ) {
         productStorage = _productStorage;
-        defaultFeePolicy = _defaultFeePolicy;
+        feePolicy = _feePolicy;
         discountPolicy = _discountPolicy;
+        token = _token;
+        converter = _converter;
+        escrowHoldTime = _escrowHoldTime;
     }
 
+    //allows to receive direct ether transfers
+    function() payable {}
+    
+    /**@dev Sets convert path for changing BCS to ETH through Bancor */
+    function setConvertParams(address[] _convertPath) public ownerOnly {
+        convertPath = _convertPath;
+    }
+
+    /**@dev Changes parameters */
     function setParams(
         IProductStorage _productStorage,
-        IFeePolicy _defaultFeePolicy, 
-        IDiscountPolicy _discountPolicy
+        IFeePolicy _feePolicy, 
+        IDiscountPolicy _discountPolicy,
+        IERC20Token _token,
+        IBancorConverter _converter,
+        uint256 _escrowHoldTime
     ) 
         public 
         ownerOnly 
     {
         productStorage = _productStorage;
-        defaultFeePolicy = _defaultFeePolicy;
+        feePolicy = _feePolicy;
         discountPolicy = _discountPolicy;
+        token = _token;
+        converter = _converter;
+        escrowHoldTime = _escrowHoldTime;
     }
     
-    /**@dev Calculates and returns payment details: how many units are bought, 
-     what part of ether should be paid and what part should be returned to buyer */
-    // function calculatePaymentDetails(uint256 productId, uint256 units, uint256 weiAmount, bool acceptLessUnits) 
-    //     public
-    //     constant
-    //     returns(uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
-    // {
-    //     var (price, maxUnits, soldUnits) = productStorage.getProductData(productId);
-
-    //     unitsToBuy = weiAmount.safeDiv(price);
-        
-    //     //if product is limited and it's not enough to buy, check acceptLessUnits flag
-    //     if (maxUnits > 0 && soldUnits + units > maxUnits) {
-    //         if (acceptLessUnits) {
-    //             unitsToBuy = maxUnits.safeSub(soldUnits);
-    //         } else {
-    //             unitsToBuy = 0; //set to 0 so it will fail in buy() function later
-    //         }
-    //     }
-        
-    //     etherToReturn = weiAmount.safeSub(price.safeMult(unitsToBuy));
-    //     etherToPay = weiAmount.safeSub(etherToReturn);
-    // } 
-
-
-    // /**@dev Buys product. Send ether with this function in amount equal to 
-    // desirable product units * current price. Buyer explicitly passed as parameter 
-    // as that leaves opportunity for another contract to buy product for someone else */
-    // function buy(
-    //     uint256 productId,         
-    //     address buyer,
-    //     string clientId, 
-    //     bool acceptLessUnits, 
-    //     uint256 currentPrice
-    // ) 
-    //     public
-    //     payable
-    // {
-    //     require(productId < productStorage.getTotalProducts());
-    //     uint256 price = productStorage.getProductPrice(productId);
-
-    //     //check for active flag and valid price
-    //     require(productStorage.isProductActive(productId) && currentPrice == price); 
-
-    //     //how much units we buy
-    //     var (unitsToBuy, etherToPay, etherToReturn) = calculatePaymentDetails(productId, msg.value, acceptLessUnits);
-
-    //     //check if there is enough units to buy
-    //     require(unitsToBuy > 0);
-
-    //     //store overpay to withdraw later
-    //      if (etherToReturn > 0) {
-    //         pendingWithdrawals[buyer] = pendingWithdrawals[buyer].safeAdd(etherToReturn);
-    //         OverpayStored(buyer, productId, etherToReturn);
-    //     }
-
-    //     var (wallet, feePolicy) = productStorage.getProductPaymentData(productId);
-        
-    //     sendEther(wallet, IFeePolicy(feePolicy), etherToPay);
-    //     productStorage.addPurchase(productId, buyer, price, unitsToBuy, clientId);
-
-    //     // TODO Rating
-    //     ProductBought(buyer, productId, clientId, price, unitsToBuy);
-    // }
-
     function getUnitsToBuy(uint256 productId, uint256 units, bool acceptLessUnits) public constant returns(uint256) {
         var (price, maxUnits, soldUnits) = productStorage.getProductData(productId);
 
         //if product is limited and it's not enough to buy, check acceptLessUnits flag
-        if (maxUnits > 0 && soldUnits + units > maxUnits) {
+        if (maxUnits > 0 && soldUnits.safeAdd(units) > maxUnits) {
             if (acceptLessUnits) {
                 return maxUnits.safeSub(soldUnits);
             } else {
@@ -137,19 +99,116 @@ contract ProductPayment is Manageable {
         }
     }
 
+    /**@dev Returns true if vendor profit can be withdrawn */
+    function canWithdrawPending(uint256 productId, uint256 purchaseId) public constant returns(bool) {
+        var (customer, fee, profit, timestamp) = productStorage.getEscrowData(productId, purchaseId);
+        IProductStorage.PurchaseState state = productStorage.getPurchase(productId, purchaseId);
+
+        return state == IProductStorage.PurchaseState.Pending 
+            || (state == IProductStorage.PurchaseState.Paid && timestamp + escrowHoldTime <= now);
+    }
+
+
     /**@dev Buys product. Send ether with this function in amount equal to 
-    desirable product units * current price. Buyer explicitly passed as parameter 
-    as that leaves opportunity for another contract to buy product for someone else */
-    function buy(
+    desirable product units * current price. */
+    function buyWithEth(
         uint256 productId,  
-        uint256 units,       
-        address buyer,
+        uint256 units,         
         string clientId, 
         bool acceptLessUnits, 
         uint256 currentPrice
     ) 
         public
         payable
+    {
+        buy(msg.value, productId, units, clientId, acceptLessUnits, currentPrice);        
+    }
+
+
+    /**@dev Buys product using BCS tokens as a payment. 
+    1st parameter is the amount of tokens that will be converted via bancor. This can be calculated off-chain.
+    Tokens should be approved for spending by this contract */
+    function buyWithTokens(
+        uint256 tokens,
+        uint256 productId,  
+        uint256 units,       
+        string clientId, 
+        bool acceptLessUnits, 
+        uint256 currentPrice
+    ) 
+        public
+    {
+        //transfer tokens to this contract for exchange
+        token.transferFrom(msg.sender, this, tokens);
+
+        //exchange through Bancor
+        uint256 ethAmount = converter.convert(convertPath, tokens, 1);
+
+        //use received ether for payment
+        buy(ethAmount, productId, units, clientId, acceptLessUnits, currentPrice);
+    }    
+
+    /**@dev Make a complain on purchase, only customer can call this method */
+    function complain(uint256 productId, uint256 purchaseId) public {
+        //check product's escrow option
+        require(productStorage.isEscrowUsed(productId));
+
+        var (customer, fee, profit, timestamp) = productStorage.getEscrowData(productId, purchaseId);
+        
+        //check purchase current state, valid customer and time limits
+        require(
+            productStorage.getPurchase(productId, purchaseId) == IProductStorage.PurchaseState.Paid && 
+            customer == msg.sender &&
+            timestamp + escrowHoldTime > now
+        );
+        
+        //change purchase status
+        productStorage.changePurchase(productId, purchaseId, IProductStorage.PurchaseState.Complain);        
+    }
+
+    /**@dev Resolves a complain on specific purchase. 
+    If cancelPayment is true, payment returns to customer; otherwise - to the vendor */
+    function resolve(uint256 productId, uint256 purchaseId, bool cancelPayment) public managerOnly {
+        
+        //check purchase state
+        require(productStorage.getPurchase(productId, purchaseId) == IProductStorage.PurchaseState.Complain);
+        
+        var (customer, fee, profit, timestamp) = productStorage.getEscrowData(productId, purchaseId);
+        
+        if (cancelPayment) {
+            //change state first, then transfer to customer
+            productStorage.changePurchase(productId, purchaseId, IProductStorage.PurchaseState.Canceled);            
+            customer.transfer(fee.safeAdd(profit));
+        } else {
+            //change state first, then transfer fee to the provider. vendor should call withdrawPending
+            productStorage.changePurchase(productId, purchaseId, IProductStorage.PurchaseState.Pending);
+        }
+    }
+
+    /**@dev transfers pending profit to the vendor */
+    function withdrawPending(uint256 productId, uint256 purchaseId) public {
+        var (customer, fee, profit, timestamp) = productStorage.getEscrowData(productId, purchaseId);
+
+        //check owner
+        require(msg.sender == productStorage.getProductOwner(productId));
+        //check withdrawability
+        require(canWithdrawPending(productId, purchaseId));
+
+        //change state first, then transfer funds
+        productStorage.changePurchase(productId, purchaseId, IProductStorage.PurchaseState.Finished);
+        productStorage.getVendorWallet(msg.sender).transfer(profit);
+        feePolicy.sendFee.value(fee)();
+    }
+
+    function buy(
+        uint256 ethAmount,
+        uint256 productId,  
+        uint256 units,        
+        string clientId, 
+        bool acceptLessUnits, 
+        uint256 currentPrice
+    ) 
+        internal        
     {
         require(productId < productStorage.getTotalProducts());        
         uint256 price = productStorage.getProductPrice(productId);
@@ -161,52 +220,35 @@ contract ProductPayment is Manageable {
         //check if there is enough units to buy
         require(unitsToBuy > 0);
         
-        uint256 totalPrice = unitsToBuy * price;        
-        uint256 discount = discountPolicy.requestDiscount(buyer, totalPrice);        
+        uint256 totalPrice = unitsToBuy.safeMult(price);        
+        uint256 discount = discountPolicy.requestBuyerDiscount(msg.sender, totalPrice);        
 
-        //if there is not enough ether to pay even with discount, safeDiv will throw exception
-        uint256 etherToReturn = msg.value.safeAdd(discount).safeSub(totalPrice);        
+        //if there is not enough ether to pay even with discount, safe will throw exception
+        uint256 etherToReturn = ethAmount.safeAdd(discount).safeSub(totalPrice);        
         
-        //transfer excess to buyer
+        //transfer excess to customer
         if (etherToReturn > 0) {
-            buyer.transfer(etherToReturn);
+            msg.sender.transfer(etherToReturn);
         }
 
-        var (wallet, feePolicy) = productStorage.getProductPaymentData(productId);
+        uint256 purchaseId = productStorage.addPurchase(productId, msg.sender, price, unitsToBuy, clientId);
+        processPurchase(productId, purchaseId, totalPrice);        
         
-        sendEther(productStorage.getProductOwner(productId), wallet, IFeePolicy(feePolicy), totalPrice);
-        productStorage.addPurchase(productId, buyer, price, unitsToBuy, clientId);
-
-        // TODO Rating
-        ProductBought(buyer, productId, clientId, price, unitsToBuy, discount);
+        ProductBought(msg.sender, productId, clientId, price, unitsToBuy, discount);
     }
-
-    /**@dev Call this to return all previous overpays */
-    // function withdrawOverpay() public {
-    //     uint amount = pendingWithdrawals[msg.sender];        
-    //     require(amount > 0);
-
-    //     pendingWithdrawals[msg.sender] = 0;
-    //     msg.sender.transfer(amount);
-    // }
-    
 
     /**@dev Sends ether to vendor and provider */
-    function sendEther(address owner, address wallet, IFeePolicy feePolicy, uint256 etherToPay) internal {
-        if (address(feePolicy) == 0x0) {
-            feePolicy = defaultFeePolicy;
-        }
+    function processPurchase(uint256 productId, uint256 purchaseId, uint256 etherToPay) internal {
+        address owner = productStorage.getProductOwner(productId);
+        uint256 fee = feePolicy.calculateFeeAmount(owner, etherToPay);
+        uint256 profit = etherToPay.safeSub(fee);
         
-        uint256 etherToProvider;
-        uint256 etherToVendor;
-        if (etherToPay > 0) {
-            etherToProvider = feePolicy.getFeeAmount(owner, etherToPay);        
-            etherToVendor = etherToPay.safeSub(etherToProvider);
-            
-            feePolicy.sendFee.value(etherToProvider)();
-            wallet.transfer(etherToVendor);
+        if (productStorage.isEscrowUsed(productId)) {
+            productStorage.setEscrowData(productId, purchaseId, msg.sender, fee, profit, now);   
+            productStorage.changePurchase(productId, purchaseId, IProductStorage.PurchaseState.Paid);
+        } else {
+            feePolicy.sendFee.value(fee)();
+            productStorage.getVendorWallet(owner).transfer(profit);
         }
-    }
-
-    function() payable {}
+    }    
 }

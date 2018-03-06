@@ -63,7 +63,8 @@ contract ProductStorage is Manageable, IProductStorage {
     //
     //Events
     event ProductAdded(
-        address indexed owner, 
+        uint256 indexed id,
+        address indexed owner,         
         uint256 price, 
         uint256 maxUnits,
         bool isActive,         
@@ -265,7 +266,7 @@ contract ProductStorage is Manageable, IProductStorage {
 
     /**@dev Returns wallet for specific vendor */
     function getVendorWallet(address vendor) public constant returns(address) {
-        return vendors[vendor].wallet;
+        return vendors[vendor].wallet == 0 ? vendor : vendors[vendor].wallet;
     }
 
     /**@dev Returns fee permille for specific vendor */
@@ -304,11 +305,11 @@ contract ProductStorage is Manageable, IProductStorage {
         product.isActive = isActive;
         product.startTime = startTime;
         product.endTime = endTime;
-        product.isActive = true;
+        product.isActive = isActive;
         product.useEscrow = useEscrow;
         product.name = name;
         product.data = data;
-        ProductAdded(owner, price, maxUnits, isActive, startTime, endTime, useEscrow, name, data);
+        ProductAdded(products.length - 1, owner, price, maxUnits, isActive, startTime, endTime, useEscrow, name, data);
     }
 
 
