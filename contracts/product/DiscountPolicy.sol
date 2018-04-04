@@ -1,30 +1,35 @@
 pragma solidity ^0.4.18;
 
 import "./IDiscountPolicy.sol";
+import "../common/SafeMathLib.sol";
 import "../common/Manageable.sol";
 import "../shop/IWallet.sol";
 import "../token/IERC20Token.sol";
+import "../common/EtherHolder.sol";
 
 /**@dev 
-Discount settings that calcultes discounts for token holders.
-Applies only if user has at least minTokens amount and there is at least minPoolBalance ether in the pool.
-Discount for a purchase equals (pool balance / discountsInPool) but not exceeding maxDiscountPermille
-of purchase amount.   */
-contract DiscountPolicy is Manageable, IDiscountPolicy {
+Discount settings that calcultes cashback for token holders. Also stores accumulated cashback for each holder */
+contract DiscountPolicy is Manageable, EtherHolder, IDiscountPolicy {
+
+    using SafeMathLib for uint256;
 
     //
     // Events
-
+    event CashbackAdded(address indexed customer, uint256 amount);
 
 
     //
     // Storage data
-    uint256 public minTokens;           // minimum token amount for getting discount
+    uint256[] public levelTokens;       // how many tokens user needs to get the corresponding level of discount
+    uint16[] public levelPcts;           // multiplier for standard discount 1/Y of pool for each level
     uint256 public minPoolBalance;      // minimum discount pool balance that enables discounts
     uint256 public discountsInPool;     // 1/discountsInPool is a share of pool for a single discount
     uint256 public maxDiscountPermille; // maximum discount permile [0-1000] 
     IWallet public pool;                // discount pool
     IERC20Token public token;           // token to check minimum token balance
+    mapping(address => uint256) public totalCashback; //accumulated cashback amount for each holder
+
+
 
     //
     // Methods
@@ -35,11 +40,74 @@ contract DiscountPolicy is Manageable, IDiscountPolicy {
         uint256 _maxDiscountPermille, 
         IWallet _pool,
         IERC20Token _token,
-        uint256 _minTokens
+        uint256[] _levelTokens,
+        uint16[] _levelPcts
     ) 
         public 
     {
-        setParams(_minPoolBalance, _discountsInPool, _maxDiscountPermille, _pool, _token, _minTokens);
+        setParams(_minPoolBalance, _discountsInPool, _maxDiscountPermille, _pool, _token, _levelTokens, _levelPcts);
+    }
+
+
+    /**@dev Returns cashback level % of specific customer  */
+    function getLevelPct(address customer) public constant returns(uint16) {
+        uint256 tokens = token.balanceOf(customer);
+        
+        if(tokens < levelTokens[0]) {
+            return 0;
+        }
+        uint256 i;
+        for(i = 0; i < levelTokens.length - 1; ++i) {
+            if(tokens < levelTokens[i + 1]) {
+                return levelPcts[i];
+            }
+        }
+
+        return levelPcts[i];
+    }
+
+
+    /**@dev Returns discount for specific amount and buyer */
+    function getCustomerDiscount(address customer, uint256 amount) public constant returns(uint256) {
+        uint16 levelPct = getLevelPct(customer);
+
+        if(levelPct > 0) {
+            uint256 poolBalance = pool.getBalance();
+            
+            if(poolBalance >= minPoolBalance) {
+                uint256 discount = poolBalance * levelPct / (discountsInPool * 100);
+                uint256 maxDiscount = amount * maxDiscountPermille / 1000;
+                
+                return discount < maxDiscount ? discount : maxDiscount;
+            }
+        }
+        return 0;
+    }
+    
+
+    /**@dev Transfers discount to the sender, returns discount amount*/
+    function requestCustomerDiscount(address customer, uint256 amount) 
+        public 
+        managerOnly
+        returns(uint256)
+    {
+        uint256 discount = getCustomerDiscount(customer, amount);
+        if(discount > 0) {
+            //accumulate discount and then transfer it here
+            CashbackAdded(customer, discount);
+            totalCashback[customer] = totalCashback[customer].safeAdd(discount);
+            pool.withdrawTo(this, discount);
+        }
+        return discount;
+    }
+
+
+    /**@dev transfer user's cashback to his wallet */
+    function withdrawCashback() public {
+        uint256 amount = totalCashback[msg.sender];        
+        totalCashback[msg.sender] = 0;
+        
+        msg.sender.transfer(amount);
     }
 
 
@@ -49,52 +117,43 @@ contract DiscountPolicy is Manageable, IDiscountPolicy {
         uint256 _maxDiscountPermille, 
         IWallet _pool,
         IERC20Token _token,
-        uint256 _minTokens
+        uint256[] _levelTokens,
+        uint16[] _levelPcts
     ) 
         public 
         ownerOnly
     {
-        require(maxDiscountPermille <= 1000);
-
         minPoolBalance = _minPoolBalance;
         discountsInPool = _discountsInPool;
         maxDiscountPermille = _maxDiscountPermille;
         pool = _pool;
         token = _token;
-        minTokens = _minTokens;
+        levelTokens = _levelTokens;
+        levelPcts = _levelPcts;
+
+        require(paramsValid());
     }
 
+    function paramsValid() internal constant returns (bool) {
+        if(maxDiscountPermille > 1000) {
+            return false;
+        }
+        
+        if (levelTokens.length == 0 || levelTokens.length > 10 || levelPcts.length != levelTokens.length) {
+            return false;
+        }        
 
-    /**@dev Returns discount for specific amount and buyer */
-    function getBuyerDiscount(address buyer, uint256 amount) public constant returns(uint256) {
-        if(token.balanceOf(buyer) >= minTokens) {
-            uint256 poolBalance = pool.getBalance();
-            
-            if(poolBalance > minPoolBalance) {
-                uint256 discount = poolBalance / discountsInPool;
-                uint256 maxDiscount = amount * maxDiscountPermille / 1000;
-                
-                return discount < maxDiscount ? discount : maxDiscount;
+        for (uint256 i = 0; i < levelTokens.length - 1; ++i) {
+            if (levelTokens[i] >= levelTokens[i + 1]) {
+                return false;
+            }
+            if (levelPcts[i] >= levelPcts[i + 1]) {
+                return false;
             }
         }
-        return 0;
+        return true;
     }
 
-    /**@dev Transfers discount to the sender, returns discount amount*/
-    function requestBuyerDiscount(address buyer, uint256 amount) 
-        public 
-        managerOnly
-        returns(uint256)
-    {
-        uint256 discount = getBuyerDiscount(buyer, amount);
-        if(discount > 0) {
-            pool.withdrawTo(msg.sender, discount);
-        }
-        return discount;
-    }
 
-    // /**@dev Applies discount to the vendor */
-    // function applyFeeDiscount(address vendor, uint256 fee) public managerOnly {
-
-    // }
+    function () public payable {}
 }

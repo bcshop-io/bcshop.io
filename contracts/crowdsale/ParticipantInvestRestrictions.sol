@@ -99,11 +99,14 @@ contract ParticipantInvestRestrictions is FloorInvestRestrictions {
     function reserveFor(address investor, uint256 weiAmount) managerOnly {
         require(!investors[investor] && hasFreePlaces());
 
+        uint256 tokenAmount = reserveTokens(weiAmount);
+        require(tokenAmount > 0);
+
         if(reservedInvestors[investor] == 0) {
             knownReserved++;
         }
 
-        reservedInvestors[investor] += reserveTokens(weiAmount);
+        reservedInvestors[investor] += tokenAmount;
         ReserveKnown(true, investor, weiAmount, reservedInvestors[investor]);
     }
 

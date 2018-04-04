@@ -121,6 +121,53 @@ library ExampleLib2 {
     }
 }
 
+//doesn't work due to incompatible struct
+library ExampleLibEx {
+    struct Data {
+        uint256 var1;
+        uint256 var2;        
+        bool var3;   
+        bytes32 var4;
+        uint256 newVar1;
+        bool newVar2;
+    }
+
+    function getVar1(ExampleLibEx.Data storage self) constant returns (uint256) {
+        return self.var1;
+    }
+    function getVars(ExampleLibEx.Data storage self, uint256 useless, bool useless2)  returns (uint256, uint256) {
+        return (self.var1, self.var2);
+    }
+    function getAllVars(ExampleLibEx.Data storage self) constant returns (uint256, bool, uint256, bytes32) {
+        return (self.var1, self.var3, self.var2, self.var4);
+    }
+    function getBool(ExampleLibEx.Data storage self)  returns (bool) {
+        return self.var3;
+    }
+    function getBoolAsInt(ExampleLibEx.Data storage self)  returns (uint256) {
+        return self.var3 ? 10 : 0;
+    }
+    function getBytes(ExampleLibEx.Data storage self) returns (bytes32) {
+        return self.var4;
+    }
+
+    function setVars(ExampleLibEx.Data storage self, uint256 new1, uint256 new2) returns (bool) {
+        self.var1 = new1;
+        self.var2 = new2;
+        // self.newVar1 = new1 + new2;
+        // self.newVar2 = true;
+        return true;
+    }
+    function setVar3(ExampleLibEx.Data storage self, bool state) {
+        self.var3 = state;
+        self.newVar2 = !state;
+    }
+    function setVar4(ExampleLibEx.Data storage self, bytes32 new4) {
+        self.var4 = new4;
+    }
+    function pay(ExampleLibEx.Data storage self) {}
+}
+
 contract ExampleLibDispatcherStorage {
     address public lib;
     mapping(bytes4 => uint32) public sizes;
@@ -258,3 +305,6 @@ contract ExampleSafeMathUser {
         return data.getSum();
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+

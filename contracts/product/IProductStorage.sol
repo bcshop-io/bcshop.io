@@ -17,6 +17,8 @@ contract IProductStorage {
     //
     // Methods
 
+    function banned(uint256 productId) public constant returns(bool) {}
+
     function getTotalProducts() public constant returns(uint256);    
 
     function getTextData(uint256 productId) public constant returns(string name, string data);    
@@ -42,6 +44,8 @@ contract IProductStorage {
 
     function isEscrowUsed(uint256 productId) public constant returns(bool);
 
+    function isFiatPriceUsed(uint256 productId) public constant returns(bool);
+
     function isProductActive(uint256 productId) public constant returns(bool);
 
     /**@dev Returns total amount of purchase transactions for the given product */
@@ -60,9 +64,9 @@ contract IProductStorage {
     function getVendorWallet(address vendor) public constant returns(address);    
 
     /**@dev Returns fee permille for specific vendor */
-    function getVendorFee(address vendor) public constant returns(int16);    
+    function getVendorFee(address vendor) public constant returns(uint16);    
 
-    function setVendorInfo(address vendor, address wallet, int16 feePermille) public;        
+    function setVendorInfo(address vendor, address wallet, uint16 feePermille) public;        
 
     /**@dev Adds new product to the storage */
     function createProduct(
@@ -73,6 +77,7 @@ contract IProductStorage {
         uint256 startTime, 
         uint256 endTime,
         bool useEscrow,
+        bool useFiatPrice,
         string name,
         string data
     ) public;
@@ -83,13 +88,33 @@ contract IProductStorage {
         uint256 price, 
         uint256 maxUnits, 
         bool isActive,
-        uint256 soldUnits,        
         uint256 startTime, 
         uint256 endTime,
         bool useEscrow,
+        bool useFiatPrice,
         string name,
         string data
     ) public;
+
+    // function editProductData(
+    //     uint256 productId,        
+    //     uint256 price,
+    //     bool useFiatPrice, 
+    //     uint256 maxUnits, 
+    //     bool isActive,
+    //     uint256 startTime, 
+    //     uint256 endTime,
+    //     bool useEscrow        
+    // ) public;
+
+    // function editProductText(
+    //     uint256 productId,        
+    //     string name,
+    //     string data
+    // ) public;
+
+    /**@dev Changes the value of sold units */
+    function changeSoldUnits(uint256 productId, uint256 soldUnits) public;
     
     /**@dev  Adds new purchase to the list of given product */
     function addPurchase(

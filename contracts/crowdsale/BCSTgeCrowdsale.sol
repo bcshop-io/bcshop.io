@@ -28,11 +28,12 @@ contract BCSTgeCrowdsale is BCSTokenCrowdsale {
         _tokensForOneEther, 
         _initialBonusPct) 
     {
+        require(endTime > 0);
         steps = _steps;
     }
 
     /**@dev Override */
-    function getCurrentBonusPct() constant returns (uint256) {
+    function getCurrentBonusPct(uint256 investment) constant returns (uint256) {
         if (now <= endTime) {
             uint256 stepD = (endTime - startTime) / steps;
             uint256 stepNow = (now - startTime) / stepD;

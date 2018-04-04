@@ -53,7 +53,7 @@ contract("EtherFund", function(accounts) {
     it("user1 withdraws his share, check fund balances after that", async function() {
         var oldBalance = await web3.eth.getBalance(user1);
         var amount = tranche1 * share1 / 1000;
-        var txr = await fund.withdraw(amount, {from:user1});
+        var txr = await fund.withdraw(amount, {from:user1, gasPrice:gasPrice});
         var newBalance = await web3.eth.getBalance(user1);        
         var gasUsedCost = txr.receipt.gasUsed*gasPrice;
 
@@ -77,7 +77,7 @@ contract("EtherFund", function(accounts) {
         amountUser2 = (await fund.etherBalanceOf.call(user2)) / 10;
 
         var oldBalance = await web3.eth.getBalance(user2);        
-        var txr = await fund.withdraw(amountUser2, {from:user2});                
+        var txr = await fund.withdraw(amountUser2, {from:user2, gasPrice:gasPrice});                
         var newBalance = await web3.eth.getBalance(user2);        
         var gasUsedCost = txr.receipt.gasUsed*gasPrice;
 
@@ -88,7 +88,7 @@ contract("EtherFund", function(accounts) {
         amountUser1 = (await fund.etherBalanceOf.call(user1)) / 2;
         
         var oldBalance = await web3.eth.getBalance(user1);        
-        var txr = await fund.withdraw(amountUser1, {from:user1});                
+        var txr = await fund.withdraw(amountUser1, {from:user1, gasPrice:gasPrice});                
         var newBalance = await web3.eth.getBalance(user1);
         var gasUsedCost = txr.receipt.gasUsed*gasPrice;
         
@@ -107,7 +107,7 @@ contract("EtherFund", function(accounts) {
         amountUser1 = (await fund.etherBalanceOf.call(user1)) / 2;
         
         var oldBalance = await web3.eth.getBalance(owner);        
-        var txr = await fund.withdraw(0, {from:owner});                
+        var txr = await fund.withdraw(0, {from:owner, gasPrice:gasPrice});                
         var newBalance = await web3.eth.getBalance(owner);
         var gasUsedCost = txr.receipt.gasUsed*gasPrice;
         
@@ -246,7 +246,7 @@ contract("EtherFund", function(accounts) {
     it("withdraw from new fund", async function() {
         var amountUser1 = lastBalance1 / 4;      
         var oldBalance = await web3.eth.getBalance(user1);        
-        var txr = await newFund.withdraw(amountUser1, {from:user1});                
+        var txr = await newFund.withdraw(amountUser1, {from:user1, gasPrice:gasPrice});                
         var newBalance = await web3.eth.getBalance(user1);
         var gasUsedCost = txr.receipt.gasUsed*gasPrice;        
         assert.equal(newBalance.minus(oldBalance).toNumber() + gasUsedCost, amountUser1, "User1 should receive its amount");
@@ -255,7 +255,7 @@ contract("EtherFund", function(accounts) {
 
         var amountUser2 = lastBalance2 / 2;      
         oldBalance = await web3.eth.getBalance(user3);
-        txr = await newFund.withdraw(amountUser2, {from:user3});
+        txr = await newFund.withdraw(amountUser2, {from:user3, gasPrice:gasPrice});
         newBalance = await web3.eth.getBalance(user3);
         gasUsedCost = txr.receipt.gasUsed*gasPrice;
         lastBalance2 = lastBalance2 - amountUser2;

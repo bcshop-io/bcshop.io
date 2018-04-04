@@ -1,15 +1,17 @@
 pragma solidity ^0.4.10;
 
-import '../token/ITokenPool.sol';
-import '../token/ReturnTokenAgent.sol';
-import '../common/Manageable.sol';
-import '../common/SafeMath.sol';
-import './IInvestRestrictions.sol';
-import './ICrowdsaleFormula.sol';
+import "../token/ITokenPool.sol";
+import "../token/ReturnTokenAgent.sol";
+import "../common/Manageable.sol";
+import "../common/SafeMath.sol";
+import "./IInvestRestrictions.sol";
+import "./ICrowdsaleFormula.sol";
+import "../token/ReturnTokenAgent.sol";
+import "../token/TokenHolder.sol";
 
 /**@dev Crowdsale base contract, used for PRE-TGE and TGE stages
 * Token holder should also be the owner of this contract */
-contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
+contract BCSCrowdsale is ReturnTokenAgent, TokenHolder, ICrowdsaleFormula, SafeMath {
 
     enum State {Unknown, BeforeStart, Active, FinishedSuccess, FinishedFailure}
     
@@ -26,10 +28,12 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
 
     uint256 public weiCollected;
     uint256 public tokensSold;
+    uint256 public totalInvestments;
 
     bool public failure; //true if some error occurred during crowdsale
 
     mapping (address => uint256) public investedFrom; //how many wei specific address invested
+    mapping (address => uint256) public returnedTo; //how many wei returned to specific address if sale fails
     mapping (address => uint256) public tokensSoldTo; //how many tokens sold to specific addreess
     mapping (address => uint256) public overpays;     //overpays for send value excesses
 
@@ -41,7 +45,7 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
     event OverpayRefund(address investor, uint weiAmount);
 
     /**@dev Crowdsale constructor, can specify startTime as 0 to start crowdsale immediately 
-    _tokensForOneEther - doesn't depend on token decimals   */ 
+    _tokensForOneEther - doesn"t depend on token decimals   */ 
     function BCSCrowdsale(        
         ITokenPool _tokenPool,
         IInvestRestrictions _restrictions,
@@ -54,7 +58,7 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
     {
         require(_beneficiary != 0x0);
         require(address(_tokenPool) != 0x0);
-        require(_durationInHours > 0);
+        //require(_durationInHours > 0);
         require(_tokensForOneEther > 0); 
         
         tokenPool = _tokenPool;
@@ -66,7 +70,11 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
         } else {
             startTime = _startTime;
         }
-        endTime = (_durationInHours * 1 hours) + startTime;        
+
+        // if(_durationInHours > 0) {
+        //     endTime = (_durationInHours * 1 hours) + startTime;
+        // }
+        endTime = (_durationInHours * 1 hours) + startTime;
         
         tokensForOneEther = _tokensForOneEther;
         minimumGoalInWei = _goalInWei;
@@ -74,9 +82,9 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
 
         weiCollected = 0;
         tokensSold = 0;
+        totalInvestments = 0;
         failure = false;
-        withdrew = false;
-
+        withdrew = false;        
         realAmountForOneEther = tokenPool.token().getRealTokenAmount(tokensForOneEther);
     }
 
@@ -110,8 +118,23 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
         }
         
         require(tokenPool.token().transferFrom(tokenPool, msg.sender, tokensToBuy));
-
+        ++totalInvestments;
         Invested(msg.sender, weiPaid, tokensToBuy);
+    }
+
+    /**@dev ReturnTokenAgent override. Returns ether if crowdsale is failed 
+        and amount of returned tokens is exactly the same as bought */
+    function returnToken(address from, uint256 amountReturned) public returnableTokenOnly {
+        if (msg.sender == address(tokenPool.token()) && getState() == State.FinishedFailure) {
+            //require(getState() == State.FinishedFailure);
+            require(tokensSoldTo[from] == amountReturned);
+
+            returnedTo[from] = investedFrom[from];
+            investedFrom[from] = 0;
+            from.transfer(returnedTo[from]);
+
+            Refund(from, returnedTo[from]);
+        }
     }
 
     /**@dev Returns true if it is possible to invest */
@@ -123,7 +146,7 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
 
     /**@dev ICrowdsaleFormula override */
     function howManyTokensForEther(uint256 weiAmount) constant returns(uint256 tokens, uint256 excess) {        
-        uint256 bpct = getCurrentBonusPct();        
+        uint256 bpct = getCurrentBonusPct(weiAmount);
         uint256 maxTokens = (tokensLeft() * 100) / (100 + bpct);
 
         tokens = weiAmount * realAmountForOneEther / 1 ether;
@@ -137,7 +160,7 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
     }
 
     /**@dev Returns current bonus percent [0-100] */
-    function getCurrentBonusPct() constant returns (uint256) {
+    function getCurrentBonusPct(uint256 investment) constant returns (uint256) {
         return bonusPct;
     }
     
@@ -159,7 +182,7 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
         
         if (now < startTime) {
             return State.BeforeStart;
-        } else if (now < endTime && tokensLeft() > 0) {
+        } else if ((endTime == 0 || now < endTime) && tokensLeft() > 0) {
             return State.Active;
         } else if (weiCollected >= minimumGoalInWei || tokensLeft() <= 0) {
             return State.FinishedSuccess;
@@ -169,19 +192,19 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
     }
 
     /**@dev Allows investors to withdraw funds and overpays in case of crowdsale failure */
-    function refund() {
-        require(getState() == State.FinishedFailure);
+    // function refund() {
+    //     require(getState() == State.FinishedFailure);
 
-        uint amount = investedFrom[msg.sender];        
+    //     uint amount = investedFrom[msg.sender];        
 
-        if (amount > 0) {
-            investedFrom[msg.sender] = 0;
-            weiCollected = safeSub(weiCollected, amount);            
-            msg.sender.transfer(amount);
+    //     if (amount > 0) {
+    //         investedFrom[msg.sender] = 0;
+    //         weiCollected = safeSub(weiCollected, amount);            
+    //         msg.sender.transfer(amount);
             
-            Refund(msg.sender, amount);            
-        }
-    }    
+    //         Refund(msg.sender, amount);            
+    //     }
+    // }    
 
     /**@dev Allows investor to withdraw overpay */
     function withdrawOverpay() {
@@ -217,4 +240,4 @@ contract BCSCrowdsale is ICrowdsaleFormula, Manageable, SafeMath {
     function changeBeneficiary(address newBeneficiary) managerOnly {
         beneficiary = newBeneficiary;
     }
-}
+} 

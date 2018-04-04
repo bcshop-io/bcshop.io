@@ -1,3 +1,53 @@
+let Web3 = require("web3");
+let web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
+let utils = new (require("./timeutils.js"))(web3);
+
+let ProxyFund = artifacts.require("ProxyFund"); 
+let EtherFund = artifacts.require("EtherFund");
+
+contract("ProxyFund", function(accounts) {
+    let owner = accounts[0];
+    let profitWallet = accounts[1];
+    let fund;
+    let proxy;
+    const OneEth = 1000000000000000000;
+
+    function fillFund() {
+        return web3.eth.sendTransaction({from:owner, to:fund.address, value:OneEth}); 
+    }
+
+    before(async function() {
+        proxy = await ProxyFund.new();
+        fund = await EtherFund.new(proxy.address, 800, profitWallet, 200);
+        await proxy.setBaseFund(fund.address);    
+
+        await fillFund();        
+    });
+
+    it("gas", async function() {
+        console.log(await fund.etherBalanceOf.call(proxy.address));
+        console.log(await proxy.getBalance.call());
+        let tx = await proxy.withdraw(OneEth / 4);
+        // let tx = await fund.withdraw(100, {from:profitWallet});
+        console.log("Gas used: " + tx.receipt.gasUsed);
+
+        tx = await proxy.withdraw(OneEth / 10);
+        console.log("Gas used: " + tx.receipt.gasUsed);
+
+        tx = await proxy.withdraw(OneEth / 10);
+        console.log("Gas used: " + tx.receipt.gasUsed);
+
+        await fillFund();  
+
+        tx = await proxy.withdraw(OneEth / 2);
+        console.log("Gas used: " + tx.receipt.gasUsed);
+
+       // tx = await proxy.withdraw(OneEth / 2);
+    });
+});
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // var Token = artifacts.require("BCSToken");
 // var tokenObj;
 

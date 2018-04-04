@@ -44,18 +44,20 @@ contract ProductStorage is Manageable, IProductStorage {
         uint256 endTime;
         //true if escrow should be used
         bool useEscrow;
+        //true if fiat price is used, in that case 
+        bool useFiatPrice;
         //name of the product 
         string name; 
         //custom fields
         string data;
         //array of purchase information
-        Purchase[] purchases;        
+        Purchase[] purchases;
     }    
 
     /**@dev Vendor-related information  */
     struct VendorInfo {
         address wallet;      //wallet to get profit        
-        int16 feePermille;   //fee permille for that vendor or -1 if default fee is used
+        uint16 feePermille;   //fee permille for that vendor or 0 if default fee is used
     }
     
 
@@ -71,6 +73,7 @@ contract ProductStorage is Manageable, IProductStorage {
         uint256 startTime, 
         uint256 endTime, 
         bool useEscrow,
+        bool useFiatPrice,
         string name,
         string data
     );
@@ -87,19 +90,19 @@ contract ProductStorage is Manageable, IProductStorage {
     event ProductEdited(
         uint256 indexed productId,        
         uint256 price, 
+        bool useFiatPrice,
         uint256 maxUnits, 
         bool isActive,
-        uint256 soldUnits,      
         uint256 startTime, 
         uint256 endTime,
-        bool useEscrow,
+        bool useEscrow,        
         string name,
         string data
     );
 
     event CustomParamsSet(uint256 indexed productId, address feePolicy);
 
-    event VendorInfoSet(address indexed vendor, address wallet, int16 feePermille);
+    event VendorInfoSet(address indexed vendor, address wallet, uint16 feePermille);
 
     event EscrowDataSet(
         uint256 indexed productId,
@@ -206,7 +209,7 @@ contract ProductStorage is Manageable, IProductStorage {
         return products[productId].owner;
     }   
 
-    /**@dev Returns product's creator */
+    /**@dev Returns product's price */
     function getProductPrice(uint256 productId) 
         public 
         constant         
@@ -215,13 +218,22 @@ contract ProductStorage is Manageable, IProductStorage {
         return products[productId].price;
     }   
 
-    /**@dev Returns product's creator */
+    /**@dev Returns product's escrow usage */
     function isEscrowUsed(uint256 productId) 
         public 
         constant         
         returns(bool)
     {
         return products[productId].useEscrow;
+    }
+
+    /**@dev Returns true if product price is set in fiat currency */
+    function isFiatPriceUsed(uint256 productId) 
+        public 
+        constant         
+        returns(bool)
+    {
+        return products[productId].useFiatPrice;
     }   
 
     /**@dev Returns true if product can be bought now */
@@ -270,11 +282,11 @@ contract ProductStorage is Manageable, IProductStorage {
     }
 
     /**@dev Returns fee permille for specific vendor */
-    function getVendorFee(address vendor) public constant returns(int16) {
+    function getVendorFee(address vendor) public constant returns(uint16) {
         return vendors[vendor].feePermille;
     }
 
-    function setVendorInfo(address vendor, address wallet, int16 feePermille) 
+    function setVendorInfo(address vendor, address wallet, uint16 feePermille) 
         public 
         managerOnly 
     {
@@ -292,6 +304,7 @@ contract ProductStorage is Manageable, IProductStorage {
         uint256 startTime, 
         uint256 endTime,
         bool useEscrow,
+        bool useFiatPrice,
         string name,
         string data
     ) 
@@ -307,9 +320,10 @@ contract ProductStorage is Manageable, IProductStorage {
         product.endTime = endTime;
         product.isActive = isActive;
         product.useEscrow = useEscrow;
+        product.useFiatPrice = useFiatPrice;
         product.name = name;
         product.data = data;
-        ProductAdded(products.length - 1, owner, price, maxUnits, isActive, startTime, endTime, useEscrow, name, data);
+        ProductAdded(products.length - 1, owner, price, maxUnits, isActive, startTime, endTime, useEscrow, useFiatPrice, name, data);
     }
 
 
@@ -319,10 +333,10 @@ contract ProductStorage is Manageable, IProductStorage {
         uint256 price, 
         uint256 maxUnits, 
         bool isActive,
-        uint256 soldUnits,      
         uint256 startTime, 
         uint256 endTime,
         bool useEscrow,
+        bool useFiatPrice,
         string name,
         string data
     ) 
@@ -335,15 +349,74 @@ contract ProductStorage is Manageable, IProductStorage {
         product.maxUnits = maxUnits;
         product.startTime = startTime;
         product.endTime = endTime;
-        product.soldUnits = soldUnits;
         product.isActive = isActive;
         product.useEscrow = useEscrow;
+        product.useFiatPrice = useFiatPrice;
         product.name = name;
         product.data = data;
-        ProductEdited(productId, price, maxUnits, isActive, soldUnits, startTime, endTime, useEscrow, name, data);
-    }   
+        ProductEdited(productId, price,useFiatPrice, maxUnits, isActive, startTime, endTime, useEscrow, name, data);
+    }
 
-    /**@dev marks product as banned. other contracts shoudl take this into account when interacting with product */
+    // function editProductData(
+    //     uint256 productId,        
+    //     uint256 price, 
+    //     bool useFiatPrice,
+    //     uint256 maxUnits, 
+    //     bool isActive,
+    //     uint256 startTime, 
+    //     uint256 endTime,
+    //     bool useEscrow
+    // ) 
+    //     public 
+    //     validProductId(productId)
+    //     managerOnly
+    // {
+    //     // ProductData storage product = products[productId];
+    //     // product.price = price;
+    //     // product.maxUnits = maxUnits;
+    //     // product.startTime = startTime;
+    //     // product.endTime = endTime;
+    //     // product.isActive = isActive;
+    //     // product.useEscrow = useEscrow;
+    //     // product.useFiatPrice = useFiatPrice;
+    //     ProductEdited(productId, price, useFiatPrice, maxUnits, isActive, startTime, endTime, useEscrow, "", "");
+    // }
+
+    // function editProductText(
+    //     uint256 productId,        
+    //     string name,
+    //     string data
+    // ) 
+    //     public 
+    //     validProductId(productId)
+    //     managerOnly
+    // {
+    //     // ProductData storage product = products[productId];
+    //     // product.name = name;
+    //     // product.data = data;
+    //     ProductEdited(productId, 0, false, 0, false, 0, 0, false, name, data);
+    // }
+
+
+    /**@dev Changes the value of currently sold units */
+    function changeSoldUnits(uint256 productId, uint256 soldUnits)
+        public 
+        validProductId(productId)
+        managerOnly
+    {
+        products[productId].soldUnits = soldUnits;
+    }
+
+    /**@dev Changes owner of the product */
+    function changeOwner(uint256 productId, address newOwner) 
+        public 
+        validProductId(productId)
+        managerOnly
+    {
+        products[productId].owner = newOwner;
+    }
+
+    /**@dev Marks product as banned. other contracts shoudl take this into account when interacting with product */
     function banProduct(uint256 productId, bool state) 
         public 
         managerOnly

@@ -1,16 +1,19 @@
 pragma solidity ^0.4.18;
 
+import "../common/Active.sol";
 import "../common/SafeMathLib.sol";
 import "../common/Manageable.sol";
 import "../token/IERC20Token.sol";
+import "../common/EtherHolder.sol";
 import "./IProductStorage.sol";
 import "./IFeePolicy.sol";
 import "./IPurchaseHandler.sol";
 import "./IDiscountPolicy.sol";
 import "./IBancorConverter.sol";
+import "./IEtherPriceProvider.sol";
 
 /**@dev This contact accepts payments for products and transfers ether to all the parties */
-contract ProductPayment is Manageable {
+contract ProductPayment is EtherHolder, Manageable, Active {
 
     using SafeMathLib for uint256;
 
@@ -18,7 +21,8 @@ contract ProductPayment is Manageable {
     //Events
 
     //emitted during purchase process. Id is 0-based index of purchase in the engine.purchases array
-    event ProductBought(address indexed buyer, uint256 indexed productId, string clientId, uint256 price, uint256 paidUnits, uint256 discount);
+    event ProductBought(address indexed buyer, address indexed vendor, uint256 indexed productId, uint256 purchaseId,
+                         string clientId, uint256 price, uint256 paidUnits, uint256 discount);
     event OverpayStored(address indexed buyer, uint256 indexed productId, uint256 amount);
 
 
@@ -28,6 +32,8 @@ contract ProductPayment is Manageable {
     IProductStorage public productStorage;
     IFeePolicy public feePolicy;
     IDiscountPolicy public discountPolicy;
+    //contract that stores ether/usd exchange rate
+    IEtherPriceProvider public etherPriceProvider;
     //token that can be used as payment tool
     IERC20Token public token;
     // Bancor quick converter to convert BCS to ETH. Important: this is NOT a BancorConverter contract.
@@ -45,23 +51,19 @@ contract ProductPayment is Manageable {
         IFeePolicy _feePolicy, 
         IDiscountPolicy _discountPolicy,
         IERC20Token _token,
-        IBancorConverter _converter,
+        IEtherPriceProvider _etherPriceProvider,
         uint256 _escrowHoldTime
     ) {
-        productStorage = _productStorage;
-        feePolicy = _feePolicy;
-        discountPolicy = _discountPolicy;
-        token = _token;
-        converter = _converter;
-        escrowHoldTime = _escrowHoldTime;
+        setParams(_productStorage, _feePolicy, _discountPolicy, _token, _etherPriceProvider, _escrowHoldTime);
     }
 
     //allows to receive direct ether transfers
     function() payable {}
     
     /**@dev Sets convert path for changing BCS to ETH through Bancor */
-    function setConvertParams(address[] _convertPath) public ownerOnly {
-        convertPath = _convertPath;
+    function setConvertParams(IBancorConverter _converter, address[] _convertPath) public ownerOnly {
+        converter = _converter;
+        convertPath = _convertPath;        
     }
 
     /**@dev Changes parameters */
@@ -70,7 +72,7 @@ contract ProductPayment is Manageable {
         IFeePolicy _feePolicy, 
         IDiscountPolicy _discountPolicy,
         IERC20Token _token,
-        IBancorConverter _converter,
+        IEtherPriceProvider _etherPriceProvider,
         uint256 _escrowHoldTime
     ) 
         public 
@@ -80,7 +82,7 @@ contract ProductPayment is Manageable {
         feePolicy = _feePolicy;
         discountPolicy = _discountPolicy;
         token = _token;
-        converter = _converter;
+        etherPriceProvider = _etherPriceProvider;
         escrowHoldTime = _escrowHoldTime;
     }
     
@@ -124,7 +126,6 @@ contract ProductPayment is Manageable {
         buy(msg.value, productId, units, clientId, acceptLessUnits, currentPrice);        
     }
 
-
     /**@dev Buys product using BCS tokens as a payment. 
     1st parameter is the amount of tokens that will be converted via bancor. This can be calculated off-chain.
     Tokens should be approved for spending by this contract */
@@ -139,10 +140,10 @@ contract ProductPayment is Manageable {
         public
     {
         //transfer tokens to this contract for exchange
-        token.transferFrom(msg.sender, this, tokens);
+        token.transferFrom(msg.sender, converter, tokens);
 
         //exchange through Bancor
-        uint256 ethAmount = converter.convert(convertPath, tokens, 1);
+        uint256 ethAmount = converter.convertFor(convertPath, tokens, 1, this);
 
         //use received ether for payment
         buy(ethAmount, productId, units, clientId, acceptLessUnits, currentPrice);
@@ -151,7 +152,7 @@ contract ProductPayment is Manageable {
     /**@dev Make a complain on purchase, only customer can call this method */
     function complain(uint256 productId, uint256 purchaseId) public {
         //check product's escrow option
-        require(productStorage.isEscrowUsed(productId));
+        //require(productStorage.isEscrowUsed(productId));
 
         var (customer, fee, profit, timestamp) = productStorage.getEscrowData(productId, purchaseId);
         
@@ -180,13 +181,46 @@ contract ProductPayment is Manageable {
             productStorage.changePurchase(productId, purchaseId, IProductStorage.PurchaseState.Canceled);            
             customer.transfer(fee.safeAdd(profit));
         } else {
-            //change state first, then transfer fee to the provider. vendor should call withdrawPending
+            //change state. vendor should call withdrawPending and then fee will be sent to provider
             productStorage.changePurchase(productId, purchaseId, IProductStorage.PurchaseState.Pending);
         }
     }
 
+    /**@dev withdraws multiple pending payments */
+    function withdrawPendingPayments(uint256[] productIds, uint256[] purchaseIds) 
+        public 
+        activeOnly 
+    {
+        require(productIds.length == purchaseIds.length);
+        address customer;
+        uint256 fee;
+        uint256 profit;
+        uint256 timestamp;
+
+        uint256 totalProfit = 0;
+        uint256 totalFee = 0;
+
+        for(uint256 i = 0; i < productIds.length; ++i) {
+            (customer, fee, profit, timestamp) = productStorage.getEscrowData(productIds[i], purchaseIds[i]);
+            
+            require(msg.sender == productStorage.getProductOwner(productIds[i]));
+            require(canWithdrawPending(productIds[i], purchaseIds[i]));
+
+            productStorage.changePurchase(productIds[i], purchaseIds[i], IProductStorage.PurchaseState.Finished);
+
+            totalFee = totalFee.safeAdd(fee);
+            totalProfit = totalProfit.safeAdd(profit);
+        }
+
+        productStorage.getVendorWallet(msg.sender).transfer(totalProfit);
+        feePolicy.sendFee.value(totalFee)();
+    }
+
     /**@dev transfers pending profit to the vendor */
-    function withdrawPending(uint256 productId, uint256 purchaseId) public {
+    function withdrawPending(uint256 productId, uint256 purchaseId) 
+        public 
+        activeOnly 
+    {
         var (customer, fee, profit, timestamp) = productStorage.getEscrowData(productId, purchaseId);
 
         //check owner
@@ -208,9 +242,12 @@ contract ProductPayment is Manageable {
         bool acceptLessUnits, 
         uint256 currentPrice
     ) 
-        internal        
+        internal
+        activeOnly
     {
         require(productId < productStorage.getTotalProducts());        
+        require(!productStorage.banned(productId));
+
         uint256 price = productStorage.getProductPrice(productId);
 
         //check for active flag and valid price
@@ -220,27 +257,34 @@ contract ProductPayment is Manageable {
         //check if there is enough units to buy
         require(unitsToBuy > 0);
         
-        uint256 totalPrice = unitsToBuy.safeMult(price);        
-        uint256 discount = discountPolicy.requestBuyerDiscount(msg.sender, totalPrice);        
+        uint256 totalPrice = unitsToBuy.safeMult(price);
 
-        //if there is not enough ether to pay even with discount, safe will throw exception
-        uint256 etherToReturn = ethAmount.safeAdd(discount).safeSub(totalPrice);        
+        //check fiat price usage
+        if(productStorage.isFiatPriceUsed(productId)) {
+            totalPrice = totalPrice.safeMult(etherPriceProvider.rate());
+            price = totalPrice / unitsToBuy;
+        }
         
+        uint256 cashback = discountPolicy.requestCustomerDiscount(msg.sender, totalPrice);
+
+        //if there is not enough ether to pay even with discount, safeSub will throw exception
+        uint256 etherToReturn = ethAmount.safeSub(totalPrice);
+
+        uint256 purchaseId = productStorage.addPurchase(productId, msg.sender, price, unitsToBuy, clientId);
+        processPurchase(productId, purchaseId, totalPrice);
+
         //transfer excess to customer
         if (etherToReturn > 0) {
             msg.sender.transfer(etherToReturn);
         }
-
-        uint256 purchaseId = productStorage.addPurchase(productId, msg.sender, price, unitsToBuy, clientId);
-        processPurchase(productId, purchaseId, totalPrice);        
         
-        ProductBought(msg.sender, productId, clientId, price, unitsToBuy, discount);
+        ProductBought(msg.sender, productStorage.getProductOwner(productId), productId, purchaseId, clientId, price, unitsToBuy, cashback);
     }
 
     /**@dev Sends ether to vendor and provider */
     function processPurchase(uint256 productId, uint256 purchaseId, uint256 etherToPay) internal {
         address owner = productStorage.getProductOwner(productId);
-        uint256 fee = feePolicy.calculateFeeAmount(owner, etherToPay);
+        uint256 fee = feePolicy.calculateFeeAmount(owner, productId, etherToPay);
         uint256 profit = etherToPay.safeSub(fee);
         
         if (productStorage.isEscrowUsed(productId)) {
@@ -250,5 +294,5 @@ contract ProductPayment is Manageable {
             feePolicy.sendFee.value(fee)();
             productStorage.getVendorWallet(owner).transfer(profit);
         }
-    }    
+    }
 }

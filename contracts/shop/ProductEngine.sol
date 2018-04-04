@@ -12,7 +12,7 @@ library ProductEngine {
 
     //event ProductBought(address buyer, uint32 unitsToBuy, string clientId);
     //event that is emitted during purchase process. Id is 0-based index of purchase in the engine.purchases array
-    event ProductBoughtEx(uint256 indexed id, address indexed buyer, string clientId, uint256 price, uint32 paidUnits);
+    event ProductBoughtEx(uint256 indexed id, address indexed buyer, string clientId, uint256 price, uint256 paidUnits);
 
     /**@dev 
     Calculates and returns payment details: how many units are bought, 
@@ -20,9 +20,11 @@ library ProductEngine {
     function calculatePaymentDetails(IProductEngine.ProductData storage self, uint256 weiAmount, bool acceptLessUnits) 
         public
         constant
-        returns(uint32 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
+        returns(uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
     {        
-        unitsToBuy = uint32(weiAmount.safeDiv(self.price));
+        //unitsToBuy = weiAmount.safeDiv(self.price);
+        unitsToBuy = weiAmount.safeMult(self.denominator).safeDiv(self.price);
+        
         //if product is limited and it's not enough to buy, check acceptLessUnits flag
         if (self.maxUnits > 0 && self.soldUnits + unitsToBuy > self.maxUnits) {
             if (acceptLessUnits) {
@@ -32,7 +34,7 @@ library ProductEngine {
             }
         }
         
-        etherToReturn = weiAmount.safeSub(self.price.safeMult(unitsToBuy));
+        etherToReturn = weiAmount.safeSub(self.price.safeMult(unitsToBuy).safeDiv(self.denominator));
         etherToPay = weiAmount.safeSub(etherToReturn);
     } 
 
@@ -46,6 +48,52 @@ library ProductEngine {
     ) 
         public
     {
+        //check for active flag and valid price
+        require(self.isActive && currentPrice == self.price); 
+
+        //how much units do we buy
+        var (unitsToBuy, etherToPay, etherToReturn) = calculatePaymentDetails(self, msg.value, acceptLessUnits);
+
+        //store overpay to withdraw later
+        if (etherToReturn > 0) {
+            self.pendingWithdrawals[msg.sender] = self.pendingWithdrawals[msg.sender].safeAdd(etherToReturn);
+        }
+
+        //check if there is enough units to buy
+        require(unitsToBuy > 0);
+
+        //how much to send to both provider and vendor
+        VendorBase vendorInfo = VendorBase(self.owner);
+        uint256 etherToProvider;
+        uint256 etherToVendor;
+        if (etherToPay > 0) {
+            etherToProvider = etherToPay.safeMult(vendorInfo.providerFeePromille()) / 1000;        
+            etherToVendor = etherToPay.safeSub(etherToProvider);
+        } else {
+            etherToProvider = 0;
+            etherToVendor = 0;
+        }
+
+        uint256 pid = self.purchases.length++;
+        IProductEngine.Purchase storage p = self.purchases[pid];
+        p.id = pid;
+        p.buyer = msg.sender;
+        p.clientId = clientId;
+        p.price = self.price;
+        p.paidUnits = unitsToBuy;
+        p.delivered = false;
+
+        if (self.userRating[msg.sender] == 0) {
+            self.userRating[msg.sender] = pid + 1;
+        }
+
+        self.soldUnits = self.soldUnits + unitsToBuy;
+        
+        vendorInfo.vendorManager().provider().transfer(etherToProvider);        
+        vendorInfo.vendor().transfer(etherToVendor);
+
+        ProductBoughtEx(self.purchases.length - 1, msg.sender, clientId, self.price, unitsToBuy);
+        //ProductBought(msg.sender, uint32(unitsToBuy), clientId);
     }
 
     /**@dev 
@@ -61,7 +109,7 @@ library ProductEngine {
     
     /**@dev 
     Marks purchase with given id as delivered or not */
-    function markAsDelivered(IProductEngine.ProductData storage self, uint32 purchaseId, bool state) public {
+    function markAsDelivered(IProductEngine.ProductData storage self, uint256 purchaseId, bool state) public {
         require(VendorBase(self.owner).owner() == msg.sender);
         require(purchaseId < self.purchases.length);
         self.purchases[purchaseId].delivered = state;
@@ -73,10 +121,7 @@ library ProductEngine {
         IProductEngine.ProductData storage self,
         string newName, 
         uint256 newPrice,         
-        uint32 newMaxUnits,
-        // bool newAllowFractions,
-        // uint256 newStartTime,
-        // uint256 newEndTime,
+        uint256 newMaxUnits,        
         bool newIsActive
     )
         public
@@ -85,38 +130,9 @@ library ProductEngine {
 
         self.name = newName;
         self.price = newPrice;
-        self.maxUnits = newMaxUnits;
-        /*self.allowFractions = newAllowFractions;
-        self.startTime = newStartTime;
-        self.endTime = newEndTime;*/
-        self.isActive = newIsActive;
+        self.maxUnits = newMaxUnits;        
+        self.isActive = newIsActive;        
     }
-
-    /**@dev Creates new Purchase record */
-    // function createPurchase(IProductEngine.ProductData storage self, string clientId, uint32 paidUnits) 
-    //     internal 
-    // {
-    //     // uint32 pid = uint32(self.purchases.length++);
-    //     // IProductEngine.Purchase storage p = self.purchases[pid];
-    //     //p.id = pid;
-    //     //p.buyer = msg.sender;
-    //     //p.clientId = clientId;
-    //     //p.price = self.price;
-    //     //p.paidUnits = paidUnits;
-    //     //p.delivered = false;
-
-    //     // if (self.userRating[msg.sender] == 0) {
-    //     //     self.userRating[msg.sender] = pid + 1;
-    //     // }
-    //     // ProductBoughtEx(pid, msg.sender, clientId, self.price, paidUnits);
-
-    //     self.purchases.length++;
-    //     self.purchases[self.purchases.length - 1].price = self.price;
-    //     if (self.userRating[msg.sender] == 0) {
-    //         self.userRating[msg.sender] = self.purchases.length;
-    //     }
-    //     ProductBoughtEx(self.purchases.length, msg.sender, clientId, self.price, paidUnits);
-    // }
 
     /**@dev Changes product rating. */
     function changeRating(IProductEngine.ProductData storage self, bool newLikeState) public {

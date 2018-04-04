@@ -27,9 +27,6 @@ contract MintableToken is Manageable, ERC20StandardToken {
 
     /**@dev Creates given amount of tokens*/
     function mint(address beneficiary, uint256 amount) public minterOnly {
-        // balances[beneficiary] += amount;
-        // tokensIssued += amount;
-
         balances[beneficiary] = safeAdd(balances[beneficiary], amount);
         tokensIssued = safeAdd(tokensIssued, amount);
         Transfer(0x0, beneficiary, amount);

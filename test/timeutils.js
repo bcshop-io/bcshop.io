@@ -53,7 +53,7 @@ TimeUtils.prototype.timeTravelAndMine = function(seconds) {
 }
 
 TimeUtils.prototype.currentTime = function() {
-    return web3.eth.getBlock(web3.eth.blockNumber).timestamp;
+    return this._web3.eth.getBlock(this._web3.eth.blockNumber).timestamp;
 }
 
 module.exports = TimeUtils;

@@ -9,14 +9,14 @@ ProductEngine that performs actual work */
 library ProductEngineTest {
 
     using SafeMathLib for uint256;
-    event ProductBoughtEx(uint256 indexed id, address indexed buyer, string clientId, uint256 price, uint32 paidUnits);
+    event ProductBoughtEx(uint256 indexed id, address indexed buyer, string clientId, uint256 price, uint256 paidUnits);
 
     /**@dev 
     Calculates and returns payment details: how many units are bought, 
      what part of ether should be paid and what part should be returned to buyer  */
     function calculatePaymentDetails(IProductEngine.ProductData storage self, uint256 weiAmount, bool acceptLessUnits) 
         constant
-        returns(uint32 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
+        returns(uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
     {
         unitsToBuy = 10;
         etherToReturn = 0;
@@ -48,13 +48,13 @@ library ProductEngineTest {
         //how much to send to both provider and vendor
         VendorBase vendorInfo = VendorBase(self.owner);
         uint256 etherToProvider = etherToPay;
-        uint256 etherToVendor = 0;        
+        uint256 etherToVendor = 0;
      
-        createPurchase(self, clientId, uint32(unitsToBuy));
+        createPurchase(self, clientId, unitsToBuy);
 
         self.soldUnits = uint32(self.soldUnits + unitsToBuy);
         
-        vendorInfo.provider().transfer(etherToProvider);        
+        vendorInfo.vendorManager().provider().transfer(etherToProvider);        
         vendorInfo.vendor().transfer(etherToVendor);
 
     }
@@ -72,7 +72,7 @@ library ProductEngineTest {
     
     /**@dev 
     Marks purchase with given id as delivered or not */
-    function markAsDelivered(IProductEngine.ProductData storage self, uint32 purchaseId, bool state) {
+    function markAsDelivered(IProductEngine.ProductData storage self, uint256 purchaseId, bool state) {
         require(VendorBase(self.owner).owner() == msg.sender);
         require(purchaseId < self.purchases.length);
         self.purchases[purchaseId].delivered = state;
@@ -84,7 +84,7 @@ library ProductEngineTest {
         IProductEngine.ProductData storage self,
         string newName, 
         uint256 newPrice,         
-        uint32 newMaxUnits,
+        uint256 newMaxUnits,
         // bool newAllowFractions,
         // uint256 newStartTime,
         // uint256 newEndTime,
@@ -102,10 +102,10 @@ library ProductEngineTest {
     }
 
     /**@dev Creates new Purchase record */
-    function createPurchase(IProductEngine.ProductData storage self, string clientId, uint32 paidUnits) 
+    function createPurchase(IProductEngine.ProductData storage self, string clientId, uint256 paidUnits) 
         internal 
     {
-        uint32 pid = uint32(self.purchases.length++);
+        uint256 pid = self.purchases.length++;
         IProductEngine.Purchase storage p = self.purchases[pid];
         //p.id = pid;
         //p.buyer = msg.sender;
@@ -113,6 +113,6 @@ library ProductEngineTest {
         p.price = self.price;
         //p.paidUnits = paidUnits * 2;
         p.delivered = false;        
-        ProductBoughtEx(self.purchases.length, msg.sender, clientId, self.price, uint32(paidUnits));
+        ProductBoughtEx(self.purchases.length, msg.sender, clientId, self.price, paidUnits);
     }
 }

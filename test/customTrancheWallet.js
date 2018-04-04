@@ -25,14 +25,14 @@ async function _TB(_holder) {
     })
 }
 
-contract("CustomTrancheWallet. Normal usage. 3 periods. ", function(accounts) {
+contract("CustomTrancheWallet. Normal usage. 4 periods. ", function(accounts) {
 
     let beneficiary;
     let owner;
     let amountToLock = 5000;
     let onePeriod = 86400; //1 day
     let unlockDates = [];
-    let unlockAmounts = [500, 1300, 5000];
+    let unlockAmounts = [500, 1300, 2400, 5000];
 
     before(async function() {
         owner = accounts[0];
@@ -44,8 +44,10 @@ contract("CustomTrancheWallet. Normal usage. 3 periods. ", function(accounts) {
         unlockDates.push(currentTime + onePeriod);
         unlockDates.push(currentTime + onePeriod * 2);
         unlockDates.push(currentTime + onePeriod * 3);        
+        unlockDates.push(currentTime + onePeriod * 4);
 
         wallet = await Wallet.new(token.address, beneficiary, unlockDates, unlockAmounts);
+        console.log("Gas used for deploy: " + web3.eth.getTransactionReceipt(wallet.transactionHash).gasUsed);
     });
 
     it("initial amount to withdraw should be 0", async function() {
@@ -72,9 +74,10 @@ contract("CustomTrancheWallet. Normal usage. 3 periods. ", function(accounts) {
     });
 
     it("withdraw it and check amount withdrawn", async function() {        
-        await wallet.sendToBeneficiary();
-        assert.equal(await _TB(beneficiary), unlockAmounts[0], "Invalid amount of tokens received");
-        assert.equal(await wallet.alreadyWithdrawn.call(), unlockAmounts[0], "Invalid withdrawn amont");
+        let tx = await wallet.sendToBeneficiary();
+        console.log("Gas used for wihdraw: " + tx.receipt.gasUsed);
+        assert.equal(await _TB(beneficiary), 500, "Invalid amount of tokens received");
+        assert.equal(await wallet.alreadyWithdrawn.call(), 500, "Invalid withdrawn amont");
     });
 
     it("less than period passed, available amount should be 0", async function() {
@@ -82,25 +85,40 @@ contract("CustomTrancheWallet. Normal usage. 3 periods. ", function(accounts) {
         await checkAvailableAmount(0);
     });
 
-    it("one period passed, available amount should equal unlockAmounts[1]-unlockAmounts[0]", async function() {
+    it("one period passed, available amount should equal 800", async function() {
         await utils.timeTravelAndMine(onePeriod);
-        await checkAvailableAmount(unlockAmounts[1]-unlockAmounts[0]);
+        await checkAvailableAmount(800);
     });
 
     it("withdraw it and check amount withdrawn", async function() {
         let oldBalance = await _TB(beneficiary);
-        await wallet.sendToBeneficiary();
-        assert.equal(await _TB(beneficiary), unlockAmounts[1], "Invalid amount of tokens received");
-        assert.equal(await wallet.alreadyWithdrawn.call(), unlockAmounts[1], "Invalid withdrawn amont");
+        let tx = await wallet.sendToBeneficiary();
+        console.log("Gas used for wihdraw: " + tx.receipt.gasUsed);
+        assert.equal(await _TB(beneficiary), 1300, "Invalid amount of tokens received");
+        assert.equal(await wallet.alreadyWithdrawn.call(), 1300, "Invalid withdrawn amont");
     });
 
-    it("complete lock period passed, amount should equal unlockAmounts[2]-unlockAmounts[1]", async function() {
+    it("one more period passed (total 3), available amount should equal 1100", async function() {
         await utils.timeTravelAndMine(onePeriod);
-        await checkAvailableAmount(unlockAmounts[2]-unlockAmounts[1]);
+        await checkAvailableAmount(1100);
+    });
+
+    it("withdraw it and check amount withdrawn", async function() {
+        let oldBalance = await _TB(beneficiary);
+        let tx = await wallet.sendToBeneficiary();
+        console.log("Gas used for wihdraw: " + tx.receipt.gasUsed);
+        assert.equal(await _TB(beneficiary), 2400, "Invalid amount of tokens received");
+        assert.equal(await wallet.alreadyWithdrawn.call(), 2400, "Invalid withdrawn amont");
+    });
+
+    it("complete lock period passed, amount should equal 2600", async function() {
+        await utils.timeTravelAndMine(onePeriod);
+        await checkAvailableAmount(2600);
     });
 
     it("withdraw it, wallet should be empty", async function() {
-        await wallet.sendToBeneficiary();
+        let tx = await wallet.sendToBeneficiary();
+        console.log("Gas used for wihdraw: " + tx.receipt.gasUsed);
         assert.equal(await _TB(beneficiary), amountToLock, "Invalid amount of tokens received");
         assert.equal(await _TB(wallet.address), 0, "Wallet should be empty");
     });
@@ -390,6 +408,17 @@ contract("CustomTrancheWallet. Lock constraints. ", function(accounts) {
             return true;
         }
         throw "Should fail";
+    });
+
+    it("can withdraw tokens before lock", async function() {
+        await token.transfer(wallet.address, 1000);
+        assert.equal(await _TB(wallet.address), 1000, "Wallet should be not empty");
+        
+        let oldBalance = await _TB(beneficiary);
+        await wallet.sendToBeneficiary();
+
+        assert.equal(await _TB(wallet.address), 0, "Wallet should be empty");
+        assert.equal(await _TB(beneficiary), +oldBalance+1000, "Invalid token balance");
     });
 });
 

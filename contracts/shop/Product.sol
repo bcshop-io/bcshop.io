@@ -16,8 +16,6 @@ contract ProductDispatcherStorage is LibDispatcherStorage {
     function ProductDispatcherStorage(address newLib) public
         LibDispatcherStorage(newLib) {
 
-        //addFunction("getTotalPurchases(IProductEngine.ProductData storage)", 4);
-        //addFunction("getPurchase(IProductEngine.ProductData storage, uint32)", 9);
         addFunction("calculatePaymentDetails(IProductEngine.ProductData storage,uint256,bool)", 96);
     }
 }
@@ -30,50 +28,45 @@ contract Product is Owned, Versioned {
 
     IProductEngine.ProductData public engine;
 
-    //event FunctionCalled(bytes4 sig, uint32 size, address dest);
-    //event ProductBought(address buyer, uint32 unitsToBuy, string clientId);
-    event ProductBoughtEx(uint256 indexed id, address indexed buyer, string clientId, uint256 price, uint32 paidUnits);
-    event Created(string name, uint32 version, uint256 price, uint32 maxUnits);
+    //event FunctionCalled(bytes4 sig, uint32 size, address dest);    
+    event ProductBoughtEx(uint256 indexed id, address indexed buyer, string clientId, uint256 price, uint256 paidUnits);
+    event Created(string name, uint32 version, uint256 price, uint256 maxUnits);
 
-    function Product(
-        //uint32 productId,
+    /**@dev 
+    unitPriceInWei - price of one whole unit
+    maxProductUnits - amount of smallest units possible for sale or 0 if unlimited.    
+    Read IProductEngine.sol for more info on 'denominator', 'price' and 'maxUnits' connection */
+    function Product(        
         string productName,
         uint256 unitPriceInWei,         
-        uint32 maxProductUnits 
-        // bool allowProductFractions,
-        // uint256 purchaseStartTime,
-        // uint256 purchaseEndTime
+        uint256 maxProductUnits, 
+        uint256 denominator
     ) public {
-        //require(purchaseStartTime <= purchaseEndTime);
-
         engine.owner = owner;
-        //engine.id = productId;
         engine.name = productName;
         engine.soldUnits = 0;        
         engine.price = unitPriceInWei * 1 wei;       
         engine.maxUnits = maxProductUnits;
-        //engine.allowFractions = allowProductFractions;
         engine.isActive = true;
-        //engine.startTime = purchaseStartTime;
-        //engine.endTime = purchaseEndTime;        
+        engine.denominator = denominator;
         version = 1;
         Created(productName, version, unitPriceInWei, maxProductUnits);
     }
     
-    function() public payable {}
+    //function() public payable {}
 
     /**@dev 
     Returns total amount of purchase transactions */
     function getTotalPurchases() public constant returns (uint256) {
-        return uint256(engine.purchases.length);
+        return engine.purchases.length;
     }
 
     /**@dev 
     Returns information about purchase with given index */
-    function getPurchase(uint32 index) 
+    function getPurchase(uint256 index) 
         public
         constant 
-        returns(uint32 id, address buyer, string clientId, uint256 price, uint32 paidUnits, bool delivered, bool badRating) 
+        returns(uint256 id, address buyer, string clientId, uint256 price, uint256 paidUnits, bool delivered, bool badRating) 
     {
         return (
             engine.purchases[index].id,
@@ -121,13 +114,13 @@ contract Product is Owned, Versioned {
     function calculatePaymentDetails(uint256 weiAmount, bool acceptLessUnits)
         public 
         constant
-        returns(uint32 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
+        returns(uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
     {
         return engine.calculatePaymentDetails(weiAmount, acceptLessUnits);        
     }
     
     /**@dev Marks purchase as delivered or undelivered */
-    function markAsDelivered(uint32 purchaseId, bool state) public {
+    function markAsDelivered(uint256 purchaseId, bool state) public {
         engine.markAsDelivered(purchaseId, state);
     }
 
@@ -135,15 +128,12 @@ contract Product is Owned, Versioned {
     function setParams(
         string newName, 
         uint256 newPrice,         
-        uint32 newMaxUnits,
-        // bool newAllowFractions,
-        // uint256 newStartTime,
-        // uint256 newEndTime,
-        bool newIsActive
+        uint256 newMaxUnits,
+        bool newIsActive        
     ) 
         public 
     {
-        engine.setParams(newName, newPrice, newMaxUnits, /*newAllowFractions, newStartTime, newEndTime,*/ newIsActive);        
+        engine.setParams(newName, newPrice, newMaxUnits, newIsActive);
     }
 
     function changeRating(bool newLikeState) public {

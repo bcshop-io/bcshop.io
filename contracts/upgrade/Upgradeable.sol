@@ -78,14 +78,18 @@ contract Dispatcher is Upgradeable {
         bytes4 sig;
         assembly { sig := calldataload(0) }        
 
-        var len = _sizes[sig];
-        var target = _dest;
-        uint8 callResult;
-        TestEvent(sig, len, msg.sender, target);
+        uint32 len = _sizes[sig];
+        address target = _dest;
+        bool callResult;
+        //TestEvent(sig, len, msg.sender, target);
         assembly {
             // return _dest.delegatecall(msg.data)
             calldatacopy(0x0, 0x0, calldatasize)
-            callResult := delegatecall(sub(gas, 10000), target, 0x0, calldatasize, 0, len)
+            callResult := delegatecall(sub(gas, 10000), target, 0x0, calldatasize, 0, len)            
+        }
+        require (callResult);
+        
+        assembly {
             return(0, len)
         }
     }

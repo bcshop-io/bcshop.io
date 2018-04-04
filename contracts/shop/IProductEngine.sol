@@ -5,30 +5,42 @@ library IProductEngine {
 
     //Purchase information
     struct Purchase {
-        uint32 id; //purchase id
+        uint256 id; //purchase id
         address buyer; //who made a purchase
         string clientId; //product-specific client id
         uint256 price; //unit price at the moment of purchase
-        uint32 paidUnits; //how many units
+        uint256 paidUnits; //how many units
         bool delivered; //true if Product was delivered
         bool badRating; //true if user changed rating to 'bad'
     }
 
-    //Storage data of product
+    /**@dev
+    Storage data of product
+    1. A couple of words on 'denominator'. It shows how many smallest units can 1 unit be splitted into.
+    'price' field still represents price per one unit. One unit = 'denominator' * smallest unit. 
+    'maxUnits', 'soldUnits' and 'paidUnits' show number of smallest units. 
+    For simple products which can't be fractioned 'denominator' should equal 1.
+
+    For example: denominator = 1,000, 'price' = 100,000. 
+    a. If user pays for one product (100,000), his 'paidUnits' field will be 1000.
+    b. If 'buy' function receives 50,000, that means user is going to buy
+        a half of the product, and 'paidUnits' will be calculated as 500.
+    c.If 'buy' function receives 100, that means user wants to buy the smallest unit possible
+        and 'paidUnits' will be 1;
+        
+    Therefore 'paidUnits' = 'weiReceived' * 'denominator' / 'price'
+    */
     struct ProductData {        
         address owner; //VendorBase - product's owner
-        //uint32 id; //Product id        
         string name; //Name of the product        
         uint256 price; //Price of one product unit        
-        uint32 maxUnits; //Max quantity of limited product units, or 0 if unlimited        
-        //bool allowFractions; //True if product can be sold by fractions, like 2.5 units                
+        uint256 maxUnits; //Max quantity of limited product units, or 0 if unlimited        
         bool isActive; //True if it is possible to buy a product        
-        //uint256 startTime; //From this point a product is buyable (linux timestamp)        
-        //uint256 endTime; //After this point the product is unbuyable (linux timestamp)        
-        uint32 soldUnits; //How many units already sold        
+        uint256 soldUnits; //How many units already sold        
+        uint256 denominator; //This shows how many decimal digits the smallest unit fraction can hold
         mapping (address => uint256) pendingWithdrawals; //List of overpays to withdraw        
         Purchase[] purchases; //Array of purchase information
-        mapping (address => uint256) userRating; //index of structure in Rating[] array. Starts with 1 so you need to subtract 1 to get actual!        
+        mapping (address => uint256) userRating; //index of first-purchase structure in Purchase[] array. Starts with 1 so you need to subtract 1 to get actual!        
     }
 
     /**@dev 
@@ -37,7 +49,7 @@ library IProductEngine {
     function calculatePaymentDetails(IProductEngine.ProductData storage self, uint256 weiAmount, bool acceptLessUnits) 
         public
         constant        
-        returns(uint32 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
+        returns(uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
     {
         self; unitsToBuy; etherToPay; etherToReturn; weiAmount; acceptLessUnits;
     } 
@@ -59,7 +71,7 @@ library IProductEngine {
 
     /**@dev 
     Marks purchase with given id as delivered or not */
-    function markAsDelivered(IProductEngine.ProductData storage self, uint32 purchaseId, bool state) public;
+    function markAsDelivered(IProductEngine.ProductData storage self, uint256 purchaseId, bool state) public;
 
     /**@dev 
     Changes parameters of product */
@@ -67,11 +79,8 @@ library IProductEngine {
         IProductEngine.ProductData storage self,
         string newName, 
         uint256 newPrice,         
-        uint32 newMaxUnits,
-        // bool newAllowFractions,
-        // uint256 newStartTime,
-        // uint256 newEndTime,
-        bool newIsActive
+        uint256 newMaxUnits,    
+        bool newIsActive        
     ) public;
 
     /**@dev Changes rating of product */

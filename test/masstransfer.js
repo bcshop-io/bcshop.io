@@ -34,7 +34,8 @@ contract("MassTransfer", function(accounts) {
         console.log("MassTransfer creation gas: " + web3.eth.getTransactionReceipt(massTransfer.transactionHash).gasUsed);
         // let tx = await token.mint(massTransfer.address, TokensToMint);
         // console.log("Gas used for mint: " + tx.receipt.gasUsed);
-        await token.transfer(massTransfer.address, await _TB(accounts[0]));
+        let tx = await token.transfer(massTransfer.address, await _TB(accounts[0]));
+        console.log("Gas used for transfer: " + tx.receipt.gasUsed);
         await token.allowTransferFor(massTransfer.address, true);
         assert.equal(await _TB(massTransfer.address), await _RT(tokenCap), "Invalid MassTransfer balance");
 
@@ -66,6 +67,20 @@ contract("MassTransfer", function(accounts) {
             return true;
         }
         throw "Should fail";
+    });
+
+    it("mass transfer - everybody receives different", async function() {
+        let tokens = [await _RT(1), await _RT(2), await _RT(3)];
+        let receivers = [accounts[0],accounts[1],accounts[2]];
+        let oldTokens = [await _TB(accounts[0]), await _TB(accounts[1]), await _TB(accounts[2])];
+        
+        let tx = await massTransfer.transfer(receivers, tokens);
+        console.log(tx.logs);
+        console.log(tx.receipt);
+        console.log("Gas used for not equal transfer: " + tx.receipt.gasUsed);
+        for(let i = 0; i < 3; ++i) {
+            assert.equal(await _TB(accounts[i]), oldTokens[i] + tokens[i], "Invalid tokens for #" + i);
+        }
     });
 
     it("mass transfer equal - everybody receives 1 token", async function() {
@@ -124,19 +139,7 @@ contract("MassTransfer", function(accounts) {
             return true;
         }
         throw "Should fail";
-    });
-
-    it("mass transfer - everybody receives different", async function() {
-        let tokens = [await _RT(1), await _RT(2), await _RT(3)];
-        let receivers = [accounts[0],accounts[1],accounts[2]];
-        let oldTokens = [await _TB(accounts[0]), await _TB(accounts[1]), await _TB(accounts[2])];
-        
-        let tx = await massTransfer.transfer(receivers, tokens);
-
-        for(let i = 0; i < 3; ++i) {
-            assert.equal(await _TB(accounts[i]), oldTokens[i] + tokens[i], "Invalid tokens for #" + i);
-        }
-    });
+    });    
     
 
     it("withdraw remained tokens", async function() {
