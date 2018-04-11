@@ -2,19 +2,20 @@ pragma solidity ^0.4.18;
 
 import "./IDiscountPolicy.sol";
 import "../common/SafeMathLib.sol";
-import "../common/Manageable.sol";
+import "../common/Active.sol";
 import "../shop/IWallet.sol";
 import "../token/IERC20Token.sol";
 import "../common/EtherHolder.sol";
 
 /**@dev 
 Discount settings that calcultes cashback for token holders. Also stores accumulated cashback for each holder */
-contract DiscountPolicy is Manageable, EtherHolder, IDiscountPolicy {
+contract DiscountPolicy is Active, EtherHolder, IDiscountPolicy {
 
     using SafeMathLib for uint256;
 
     //
     // Events
+    event CashbackCalculated(address indexed customer, uint256 amount);
     event CashbackAdded(address indexed customer, uint256 amount);
 
 
@@ -93,21 +94,34 @@ contract DiscountPolicy is Manageable, EtherHolder, IDiscountPolicy {
     {
         uint256 discount = getCustomerDiscount(customer, amount);
         if(discount > 0) {
-            //accumulate discount and then transfer it here
-            CashbackAdded(customer, discount);
-            totalCashback[customer] = totalCashback[customer].safeAdd(discount);
+            //accumulate discount
             pool.withdrawTo(this, discount);
+            CashbackCalculated(customer, discount);
+
+            //Don't add the cashback here. it will be calculated later by oracle once a certain period
+            //totalCashback[customer] = totalCashback[customer].safeAdd(discount);            
         }
         return discount;
     }
 
 
     /**@dev transfer user's cashback to his wallet */
-    function withdrawCashback() public {
+    function withdrawCashback() public activeOnly {
         uint256 amount = totalCashback[msg.sender];        
         totalCashback[msg.sender] = 0;
         
         msg.sender.transfer(amount);
+    }
+
+
+    /**@dev Adds a certain amount to a customer's cashback */
+    function addCashbacks(address[] customers, uint256[] amounts) public managerOnly {
+        require(customers.length == amounts.length);
+
+        for(uint256 i = 0; i < customers.length; ++i) {
+            totalCashback[customers[i]] = totalCashback[customers[i]].safeAdd(amounts[i]);
+            CashbackAdded(customers[i], amounts[i]); 
+        }
     }
 
 

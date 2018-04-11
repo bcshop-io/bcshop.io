@@ -13,7 +13,7 @@ import "./IBancorConverter.sol";
 import "./IEtherPriceProvider.sol";
 
 /**@dev This contact accepts payments for products and transfers ether to all the parties */
-contract ProductPayment is EtherHolder, Manageable, Active {
+contract ProductPayment is EtherHolder, Active {
 
     using SafeMathLib for uint256;
 

@@ -166,9 +166,11 @@ contract("EtherHolder", function (accounts) {
     let amount = utils.toWei(1);
     let owner = accounts[0];
     let user = accounts[1];
-    
+    let manager = accounts[2];
+
     beforeEach(async function() {
         testObject = await EtherHolder.new();
+        await testObject.setManager(manager, true);
         await utils.sendEther(owner, testObject.address, amount);
     });
     
@@ -181,9 +183,9 @@ contract("EtherHolder", function (accounts) {
         assert.equal(await utils.getBalance(testObject.address), amount*0.6, "Holder should contain the remaining");
     });
 
-    it("withdraw to user the whole balance", async function() {        
+    it("withdraw to user the whole balance as manager", async function() {        
         let oldBalance = await utils.getBalance(user);
-        await testObject.withdrawEtherTo(amount, user);
+        await testObject.withdrawEtherTo(amount, user, {from: manager});
         let newBalance = await utils.getBalance(user);
 
         assert.equal(newBalance.minus(oldBalance), amount, "Invalid amount withdrawn");
@@ -196,7 +198,7 @@ contract("EtherHolder", function (accounts) {
         });
     });
 
-    it("can't withdraw as not an owner", async function() {
+    it("can't withdraw as not an owner or manager", async function() {
         await utils.expectContractException(async function() {
             await testObject.withdrawEtherTo(amount, user, {from:user});
         });

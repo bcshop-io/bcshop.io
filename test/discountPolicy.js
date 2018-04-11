@@ -244,6 +244,20 @@ contract("DiscountPolicy. workflow", function(accounts) {
             "!");
     });
 
+    it("transfer tokens needed for next level to user2 and check the discount increased", async function() {
+        await token.transfer(user2, LevelTokens[1]-LevelTokens[0]);
+        assert.equal(
+            (await discountPolicy.getLevelPct(user2)).toNumber(),
+            LevelPcts[1],
+            "Invalid cashback percent"
+        );
+
+        assert.equal(
+            (await discountPolicy.getCustomerDiscount.call(user2, E18)).toNumber(), 
+            LevelPcts[1] * MinPoolBalance/DiscountsInPool / 100, 
+            "!");
+    });
+
     it("check and request user1 cashback for purchase of 1 ETH. verify event of transaction", async function() {
         let discount = await discountPolicy.getCustomerDiscount.call(user1, E18);
         assert.equal(discount.toNumber(), MinPoolBalance/DiscountsInPool, "!");
@@ -255,7 +269,8 @@ contract("DiscountPolicy. workflow", function(accounts) {
         assert.equal(eventArgs.customer, user1, "Invalid event arguments.customer");
         assert.equal(eventArgs.amount.toNumber(), discount.toNumber(), "Invalid event arguments.amount");
 
-        assert.equal((await discountPolicy.totalCashback.call(user1)).toNumber(), discount.toNumber(), "Invalid cashback added");
+        // assert.equal((await discountPolicy.totalCashback.call(user1)).toNumber(), discount.toNumber(), "Invalid cashback added");
+        assert.equal((await discountPolicy.totalCashback.call(user1)).toNumber(), 0, "Cashback shouldn't be added");
 
         assert.equal(
             (await utils.getBalance(discountPolicy.address)).toNumber(), 
@@ -300,6 +315,11 @@ contract("DiscountPolicy. Minimum pool for discount", function(accounts) {
         await utils.sendEther(owner, pool.address, MinPoolBalance/2);
         assert.equal((await discountPolicy.getCustomerDiscount.call(user1, E18)).toNumber(), E18*0.001, "!");
     });
+
+    it("request discount and check the discount, should be 0 as pool gets smaller than min.", async function() {
+        await discountPolicy.requestCustomerDiscount(user1, E18, {from:manager, gasPrice:gasPrice});
+        assert.equal(await discountPolicy.getCustomerDiscount.call(user1, E18), 0, "!");
+    })
 });
 
 
@@ -381,9 +401,12 @@ contract("DiscountPolicy. Consecutive requests", function(accounts) {
     requestDiscount(user3, utils.toWei(1), utils.toWei(0.003990004), "Level 2");
 
     it("verify totalCashback of users", async function() {
-        assert.equal((await discountPolicy.totalCashback.call(user1)).toNumber(), utils.toWei(0.002+0.001998+0.001), "Invalid cashback for user1");
+        // assert.equal((await discountPolicy.totalCashback.call(user1)).toNumber(), utils.toWei(0.002+0.001998+0.001), "Invalid cashback for user1");
+        // assert.equal((await discountPolicy.totalCashback.call(user2)).toNumber(), 0, "Invalid cashback for user2");
+        // assert.equal((await discountPolicy.totalCashback.call(user3)).toNumber(), utils.toWei(0.003990004), "Invalid cashback for user3");
+        assert.equal((await discountPolicy.totalCashback.call(user1)).toNumber(), 0, "Invalid cashback for user1");
         assert.equal((await discountPolicy.totalCashback.call(user2)).toNumber(), 0, "Invalid cashback for user2");
-        assert.equal((await discountPolicy.totalCashback.call(user3)).toNumber(), utils.toWei(0.003990004), "Invalid cashback for user3");
+        assert.equal((await discountPolicy.totalCashback.call(user3)).toNumber(), 0, "Invalid cashback for user3");
     });
 });
 
@@ -394,14 +417,17 @@ contract("DiscountPolicy. Withdraw", function(accounts) {
     let cashback3;
     
     beforeEach(async function() {
-        await prepare(accounts, MinPoolBalance*2);
-        await discountPolicy.requestCustomerDiscount(user1, E18, {from:manager, gasPrice:gasPrice});
-        await discountPolicy.requestCustomerDiscount(user3, E18, {from:manager, gasPrice:gasPrice});
-        await discountPolicy.requestCustomerDiscount(user4, E18, {from:manager, gasPrice:gasPrice});
+        await prepare(accounts, MinPoolBalance*2);        
+        await discountPolicy.addCashbacks([user1, user3, user4], [MinPoolBalance/10, MinPoolBalance/2, MinPoolBalance/4]);
+        // await discountPolicy.requestCustomerDiscount(user1, E18, {from:manager, gasPrice:gasPrice});
+        // await discountPolicy.requestCustomerDiscount(user3, E18, {from:manager, gasPrice:gasPrice});
+        // await discountPolicy.requestCustomerDiscount(user4, E18, {from:manager, gasPrice:gasPrice});
 
         cashback1 = (await discountPolicy.totalCashback.call(user1)).toNumber();
         cashback2 = (await discountPolicy.totalCashback.call(user3)).toNumber();
         cashback3 = (await discountPolicy.totalCashback.call(user4)).toNumber();
+
+        await utils.sendEther(owner, discountPolicy.address, +cashback1+cashback2+cashback3);
     });
 
     it("reenter attacks, fail as not enough gas for custom fallback function left", async function() {
@@ -410,7 +436,8 @@ contract("DiscountPolicy. Withdraw", function(accounts) {
         let attacker = await AttackContract.new(discountPolicy.address);
         await token.transfer(attacker.address, LevelTokens[0]);
 
-        await discountPolicy.requestCustomerDiscount(attacker.address, E18, {from:manager, gasPrice:gasPrice});        
+        //await discountPolicy.requestCustomerDiscount(attacker.address, E18, {from:manager, gasPrice:gasPrice});        
+        await discountPolicy.addCashbacks([attacker.address], [MinPoolBalance/10]);
         let cashbackA = await discountPolicy.totalCashback.call(attacker.address);        
 
         let contractBalance = (await utils.getBalance(discountPolicy.address)).toNumber();
@@ -431,7 +458,6 @@ contract("DiscountPolicy. Withdraw", function(accounts) {
         let balance3 = await utils.getBalance(user4);
 
         let tx = await discountPolicy.withdrawCashback({from:user1, gasPrice:gasPrice});
-        
         assert.equal(
             (await utils.getBalance(user1)).toNumber(),
             balance1.minus(tx.receipt.gasUsed*gasPrice).plus(cashback1).toNumber(),
@@ -440,7 +466,7 @@ contract("DiscountPolicy. Withdraw", function(accounts) {
         assert.equal(await discountPolicy.totalCashback.call(user1), 0, "Total cashback for user1 should be 0");
         assert.equal((await utils.getBalance(discountPolicy.address)).toNumber(), +cashback2+cashback3, "Invalid contract balance after withdraw 1");
 
-        tx = await discountPolicy.withdrawCashback({from:user3, gasPrice:gasPrice});
+        tx = await discountPolicy.withdrawCashback({from:user3, gasPrice:gasPrice});    
         assert.equal(
             (await utils.getBalance(user3)).toNumber(),
             balance2.minus(tx.receipt.gasUsed*gasPrice).plus(cashback2).toNumber(),
@@ -449,7 +475,7 @@ contract("DiscountPolicy. Withdraw", function(accounts) {
         assert.equal(await discountPolicy.totalCashback.call(user3), 0, "Total cashback for user3 should be 0");
         assert.equal((await utils.getBalance(discountPolicy.address)).toNumber(), cashback3, "Invalid contract balance after withdraw 2");
 
-        tx = await discountPolicy.withdrawCashback({from:user4, gasPrice:gasPrice});
+        tx = await discountPolicy.withdrawCashback({from:user4, gasPrice:gasPrice});        
         assert.equal(
             (await utils.getBalance(user4)).toNumber(),
             balance3.minus(tx.receipt.gasUsed*gasPrice).plus(cashback3).toNumber(),
@@ -471,7 +497,117 @@ contract("DiscountPolicy. Withdraw", function(accounts) {
             "Invalid amount withdrawn"
         );
     });
+    
+    it("can't withdraw cashback if not enough Ether in the contract", async function() {
+        await discountPolicy.addCashbacks([user1], [2*MinPoolBalance]);
+        assert.isAbove(
+            (await discountPolicy.totalCashback.call(user1)).toNumber(), 
+            await utils.getBalance(discountPolicy.address),
+            "Invalid balance"
+        );
 
+        await utils.expectContractException(async function() {
+            await discountPolicy.withdrawCashback({from:user1});
+        })
+    });
+
+    it("measure gas", async function() {
+        let tx = await discountPolicy.withdrawCashback({from:user1});
+        console.log("gas used first time: " + tx.receipt.gasUsed);
+
+        await discountPolicy.addCashbacks([user1], [MinPoolBalance/100]);
+
+        tx = await discountPolicy.withdrawCashback({from:user1});
+        console.log("gas used second time: " + tx.receipt.gasUsed);
+    });
+});
+
+
+contract("DiscountPolicy. AddCashbacks", function(accounts) {
+    
+    beforeEach(async function() {
+        await prepare(accounts, 0);
+    })
+
+    it("can't be called by not owner/manager", async function() {
+        await utils.expectContractException(async function() {
+            await discountPolicy.addCashbacks([user1, user2], [E18/10, E18/10], {from:user1});
+        })
+    });
+
+    it("can't be called with array of unequal sizes", async function() {
+        await utils.expectContractException(async function() {
+            await discountPolicy.addCashbacks([user1, user2], [E18/10, E18/10, E18], {from:manager});
+        });
+    });
+
+    it("verify totalCashback after addCashback", async function() {
+        await discountPolicy.addCashbacks([user1, user2], [E18/10, E18/2], {from:manager});
+        
+        assert.equal(await discountPolicy.totalCashback.call(user1), E18/10, "1. Invalid cashback for user1");
+        assert.equal(await discountPolicy.totalCashback.call(user2), E18/2, "1. Invalid cashback for user2");
+
+        await discountPolicy.addCashbacks([user1, user3], [E18/10, E18/4], {from:manager});
+        
+        assert.equal(await discountPolicy.totalCashback.call(user1), 2*E18/10, "2. Invalid cashback for user1");
+        assert.equal(await discountPolicy.totalCashback.call(user3), E18/4, "2. Invalid cashback for user3");
+    });
+
+    it("verify addCashback after withdrawal", async function() {
+        await utils.sendEther(owner, discountPolicy.address, 2*E18);
+        
+        let balance1 = await utils.getBalance(user1);
+        let balance2 = await utils.getBalance(user2);
+
+        await discountPolicy.addCashbacks([user1, user2], [E18/10, E18/2]);
+
+        let tx1 = await discountPolicy.withdrawCashback({from:user1, gasPrice:gasPrice});
+        assert.equal(await discountPolicy.totalCashback.call(user1), 0, "Cashback for user1 should be 0");
+
+        await discountPolicy.addCashbacks([user1, user2, user3], [E18/10, E18/2, E18/20]);
+        assert.equal(await discountPolicy.totalCashback.call(user1), E18/10, "Invalid cashback for user1");
+        assert.equal(await discountPolicy.totalCashback.call(user2), E18, "Invalid cashback for user1");
+        assert.equal(await discountPolicy.totalCashback.call(user3), E18/20, "Invalid cashback for user1");        
+
+        let tx2 = await discountPolicy.withdrawCashback({from:user1, gasPrice:gasPrice});
+        let tx3 = await discountPolicy.withdrawCashback({from:user2, gasPrice:gasPrice});
+
+        assert.equal(
+            (await utils.getBalance(user1)).toNumber(), 
+            balance1.minus(tx1.receipt.gasUsed*gasPrice).minus(tx2.receipt.gasUsed*gasPrice).plus(2*E18/10).toNumber(),
+            "Invalid user1 cashback withdrawn"
+        );
+
+        assert.equal(
+            (await utils.getBalance(user2)).toNumber(), 
+            balance2.minus(tx3.receipt.gasUsed*gasPrice).plus(E18).toNumber(),
+            "Invalid user2 cashback withdrawn"
+        );        
+    });
+
+    it("measure gas", async function() {
+        let acc10 = [];
+        let amounts10 = [];
+        for(let i = 0; i < 10; ++i) {
+            acc10.push(accounts[i%10]);
+            amounts10.push(E18/(i+1));
+        }
+        let tx = await discountPolicy.addCashbacks(acc10, amounts10);        
+        console.log("Gas used for 10 users, first time: " + tx.receipt.gasUsed);
+
+        tx = await discountPolicy.addCashbacks(acc10, amounts10);
+        console.log("Gas used for 10 users: " + tx.receipt.gasUsed);
+
+
+        let acc100 = [];
+        let amounts100 = [];
+        for(let i = 0; i < 100; ++i) {
+            acc100.push(accounts[i%10]);
+            amounts100.push(E18/(i+1));
+        }
+        tx = await discountPolicy.addCashbacks(acc100, amounts100);
+        console.log("Gas used for 100 users: " + tx.receipt.gasUsed);
+    });
 });
 
 

@@ -60,20 +60,14 @@ async function prepare(accounts) {
     let result = await utils.createFunds(provider, ProfitPermille);
     pool = result.proxy;
     etherFund = result.fund;
-
     discountPolicy = await utils.createDiscountPolicy(MinPoolForDiscount, DiscountsInPool, MaxDiscount, pool, token, LevelTokens, LevelPcts);
-
     storage = await utils.createProductStorage();
-
     factory = await utils.createProductFactory(storage);
-
     etherPriceProvider = await utils.createEtherPriceProvider(WeisForCent); //1 eth = 1000$
-
     feePolicy = await utils.createFeePolicy(
         storage, FeePermille, EscrowFeePermille, FiatPriceFeePermille, etherFund.address, token,
         MinTokensForFeeDiscount, FeeDiscountTerm, MaxTotalDiscountPerToken, FeeDiscountPermille
     );
-
     payment = await utils.createPayment(storage, feePolicy, discountPolicy, token, etherPriceProvider, escrowTime);
     await payment.setManager(escrow, true);
 }
@@ -289,6 +283,8 @@ contract("ProductPayment. buyWithEth", function(accounts) {
 
 
 contract("ProductPayment. Payment distribution. no escrow. default vendor wallet. ", function(accounts) {
+    let tx;
+    
     beforeEach(async function() {
         await prepare(accounts);
     });
@@ -304,7 +300,7 @@ contract("ProductPayment. Payment distribution. no escrow. default vendor wallet
         let oldVendorBalance = await utils.getBalance(vendor);
         let oldCustomerBalance = await utils.getBalance(user1);
 
-        let tx = await payment.buyWithEth(
+        tx = await payment.buyWithEth(
             0, unitsToBuy, "id", acceptLess, Price1,
             {from:user1, value:ethSent, gasPrice:gasPrice});
 
@@ -368,10 +364,9 @@ contract("ProductPayment. Payment distribution. no escrow. default vendor wallet
         assert.equal(
             (await pool.getBalance.call()).toNumber(),
             utils.dpm(fundInitialBalance + utils.pm(Price1, FeePermille), ProfitPermille) - expectedDiscount,
-            "Invalid discount pool available funds");
-
+            "Invalid discount pool available funds");        
         assert.equal(
-            await discountPolicy.totalCashback.call(user1),
+            tx.logs[0].args.discount,
             expectedDiscount,
             "Invalid cashback accumulated"
         );
@@ -397,6 +392,7 @@ contract("ProductPayment. Payment distribution. use escrow", function(accounts) 
         await storage.setVendorInfo(vendor, vendor, 0);
     });
 
+    let tx;
 
     async function checkBalancesAfterPurchase(
         unitsToBuy,
@@ -410,7 +406,7 @@ contract("ProductPayment. Payment distribution. use escrow", function(accounts) 
         let oldCustomerBalance = await utils.getBalance(user1);
         let price = await storage.getProductPrice.call(0);
 
-        let tx = await payment.buyWithEth(
+        tx = await payment.buyWithEth(
             0, unitsToBuy, "id", acceptLess, price,
             {from:user1, value:price*unitsToBuy, gasPrice:gasPrice});
 
@@ -481,7 +477,7 @@ contract("ProductPayment. Payment distribution. use escrow", function(accounts) 
             "Invalid discount pool available funds");
 
         assert.equal(
-            await discountPolicy.totalCashback.call(user1),
+            tx.logs[0].args.discount,
             expectedDiscount,
             "Invalid cashback accumulated"
         );
@@ -898,6 +894,7 @@ contract("ProductPayment. withdraw multiple pendings", function(accounts) {
 contract("ProductPayment. Fiat price. 1 ETH = 1000$", function(accounts) {
     const usdCentPrice = 5000;
     const NewEthRate = WeisForCent / 2;
+    let tx;
 
     beforeEach(async function() {
         await prepare(accounts);
@@ -908,7 +905,7 @@ contract("ProductPayment. Fiat price. 1 ETH = 1000$", function(accounts) {
         let oldPurchases = (await storage.getTotalPurchases.call(0)).toNumber();
         let oldVendorBalance = await utils.getBalance(vendor);
         let oldBalance = await utils.getBalance(user1);
-        let tx = await payment.buyWithEth(0, 1, "ID", true, usdCentPrice, {from:user1, value:eth, gasPrice:gasPrice});
+        tx = await payment.buyWithEth(0, 1, "ID", true, usdCentPrice, {from:user1, value:eth, gasPrice:gasPrice});
         let gasCost = tx.receipt.gasUsed*gasPrice;
         let newBalance = await utils.getBalance(user1);
         let newVendorBalance = await utils.getBalance(vendor);
@@ -963,7 +960,7 @@ contract("ProductPayment. Fiat price. 1 ETH = 1000$", function(accounts) {
         await testBuy(ethSent, expectedEthChange);
 
         assert.equal(
-            await discountPolicy.totalCashback.call(user1),
+            tx.logs[0].args.discount,
             discount,
             "Invalid cashback accumulated"
         );
@@ -974,8 +971,8 @@ contract("ProductPayment. Fiat price. 1 ETH = 1000$", function(accounts) {
         await testBuy(ethSent1, ethSent1);
 
         //eth price drops x2
-        await etherPriceProvider.updateRate(NewEthRate);
-
+        let tx = await etherPriceProvider.updateRate(NewEthRate);
+        
         let ethSent2 = usdCentPrice * NewEthRate;
         await testBuy(ethSent2, ethSent2);
     });
@@ -988,7 +985,7 @@ contract("ProductPayment. Buy with tokens (bancor)", function(accounts) {
     let ethToken;
     let bntToken;
     let bntConverter;
-    let bancor;
+    let bancor;    
 
     before(async function() {
         await prepare(accounts);
@@ -1079,16 +1076,31 @@ contract("ProductPayment. Buy with tokens (bancor)", function(accounts) {
     });
 
     it("buy tokens via bancor", async function() {
+        await token.transfer(user2, 123456789);
+
         let value = OneEther/100;
         let oldBcsBalance = await utils.TB(token, user2);
         let bcsExpected = await utils.getBancorBcs(token, bancor, value);
-        let tx = await web3.eth.sendTransaction({from:user2, to:bcsConverter.address, value:value, gas:700000});
-        //let tx = await bcsConverter.quickConvert(quickBuyPath, OneEther/100, 1, {from:user2, value:OneEther/100});
-        //console.log(tx);
-        let tokensRecevied = (await utils.TB(token, user2)) - oldBcsBalance;
-        assert.equal(tokensRecevied, bcsExpected, "Invalid tokens received");
-    })
+        // console.log(token.address);
+        // console.log("Old tokens " + oldBcsBalance);
+        // console.log("Expected " + bcsExpected);        
+        //let tx = await web3.eth.sendTransaction({from:user2, to:bcsConverter.address, value:value, gas:700000});   
+        let quickBuyPath = [
+            await bcsConverter.quickBuyPath.call(0),
+            await bcsConverter.quickBuyPath.call(1),
+            await bcsConverter.quickBuyPath.call(2),
+            await bcsConverter.quickBuyPath.call(3),
+            await bcsConverter.quickBuyPath.call(4)
+        ];
+        let tx = await bcsConverter.quickConvert(quickBuyPath, value, bcsExpected*0.9, {from:user2, value:value});
+        let newBcsBalance = await utils.TB(token, user2);
+        // console.log("New tokens " + newBcsBalance);
+        // let tokensRecevied = (await utils.TB(token, user2)) - oldBcsBalance;
+        // console.log("Tokens received " + tokensRecevied);                
+        assert.equal(oldBcsBalance + bcsExpected, newBcsBalance, "Invalid tokens received");
+    });
 });
+
 
 
 contract("ProductPayment. Replace payment contract", function(accounts) {

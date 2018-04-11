@@ -116,7 +116,7 @@ async function(minPoolBalance, discountsInPool, maxDiscountPermille, pool, token
 Utils.prototype.createProductStorage = 
 async function() {
     let ProductStorage = artifacts.require("ProductStorage");
-    return await ProductStorage.new();
+    return await ProductStorage.new({gas:2700000});
 }
 
 //creates ProductMaker contract. storage is truffle contract, not an address
@@ -141,6 +141,7 @@ async function(storage, defaultFee, escrowFee, fiatPriceFee, feeWallet, token, m
 Utils.prototype.createPayment = 
 async function(storage, feePolicy, discountPolicy, token, etherPriceProvider, escrowTime) {
     let Payment = artifacts.require("ProductPayment");
+    
     let payment = await Payment.new(storage.address, feePolicy.address, discountPolicy.address, 
                                     token.address, etherPriceProvider.address, escrowTime, {gas:3000000});
     
@@ -155,7 +156,7 @@ Utils.prototype.createEtherPriceProvider =
 async function(rate) {
     let EtherPriceProvider = artifacts.require("EtherPriceProvider");
     let provider = await EtherPriceProvider.new();
-    await provider.updateRate(rate);
+    let tx = await provider.updateRate(rate);    
     return provider;
 }
 
@@ -172,6 +173,13 @@ Utils.prototype.RT =
 async function(token, amount) {
     return (await token.getRealTokenAmount.call(amount)).toNumber();
 }
+
+
+
+//
+// DiscountPolicy 
+//
+
 
 
 
