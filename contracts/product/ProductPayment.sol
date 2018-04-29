@@ -23,7 +23,6 @@ contract ProductPayment is EtherHolder, Active {
     //emitted during purchase process. Id is 0-based index of purchase in the engine.purchases array
     event ProductBought(address indexed buyer, address indexed vendor, uint256 indexed productId, uint256 purchaseId,
                          string clientId, uint256 price, uint256 paidUnits, uint256 discount);
-    event OverpayStored(address indexed buyer, uint256 indexed productId, uint256 amount);
 
 
     //
