@@ -28,7 +28,7 @@ contract MassTransfer is TokenHolder {
         }
     }
 
-    function transfer(address[] receivers, uint256[] amounts) public ownerOnly {
+    function transfer(address[] receivers, uint256[] amounts) public {
         require(allowedUsers[msg.sender]);
         
         for(uint256 i = 0; i < receivers.length; ++i) {
