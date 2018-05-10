@@ -290,6 +290,8 @@ contract ProductStorage is Manageable, IProductStorage {
         public 
         managerOnly 
     {
+        require(feePermille <= 1000);
+
         vendors[vendor].wallet = wallet;
         vendors[vendor].feePermille = feePermille;
         VendorInfoSet(vendor, wallet, feePermille);
@@ -356,46 +358,6 @@ contract ProductStorage is Manageable, IProductStorage {
         product.data = data;
         ProductEdited(productId, price,useFiatPrice, maxUnits, isActive, startTime, endTime, useEscrow, name, data);
     }
-
-    // function editProductData(
-    //     uint256 productId,        
-    //     uint256 price, 
-    //     bool useFiatPrice,
-    //     uint256 maxUnits, 
-    //     bool isActive,
-    //     uint256 startTime, 
-    //     uint256 endTime,
-    //     bool useEscrow
-    // ) 
-    //     public 
-    //     validProductId(productId)
-    //     managerOnly
-    // {
-    //     // ProductData storage product = products[productId];
-    //     // product.price = price;
-    //     // product.maxUnits = maxUnits;
-    //     // product.startTime = startTime;
-    //     // product.endTime = endTime;
-    //     // product.isActive = isActive;
-    //     // product.useEscrow = useEscrow;
-    //     // product.useFiatPrice = useFiatPrice;
-    //     ProductEdited(productId, price, useFiatPrice, maxUnits, isActive, startTime, endTime, useEscrow, "", "");
-    // }
-
-    // function editProductText(
-    //     uint256 productId,        
-    //     string name,
-    //     string data
-    // ) 
-    //     public 
-    //     validProductId(productId)
-    //     managerOnly
-    // {
-    //     // ProductData storage product = products[productId];
-    //     // product.name = name;
-    //     // product.data = data;
-    //     ProductEdited(productId, 0, false, 0, false, 0, 0, false, name, data);
-    // }
 
 
     /**@dev Changes the value of currently sold units */
