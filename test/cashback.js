@@ -1,3 +1,5 @@
+
+
 let Web3 = require("web3");
 let web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
 let time = new (require("./timeutils.js"))(web3);
@@ -23,6 +25,7 @@ let user1;
 let user2;
 let user3;
 let bancorOwner;
+let manager;
 
 let WeisForCent = 10000000000000;
 let OneEther = 1000000000000000000;
@@ -77,6 +80,7 @@ async function prepare(accounts) {
     vendor = accounts[5];
     vendorWallet = accounts[6];
     bancorOwner = accounts[7];
+    manager = accounts[9];
     bancorConverter = accounts[9];
 
     token = await utils.createToken();
@@ -93,6 +97,7 @@ async function prepare(accounts) {
     );
     payment = await utils.createPayment(storage, feePolicy, discountPolicy, token, etherPriceProvider, escrowTime);
     await payment.setManager(escrow, true);
+    await discountPolicy.setManager(manager, true);
 
     await token.transfer(user1, LevelTokens[0]);
     await token.transfer(user2, LevelTokens[1]);
@@ -269,7 +274,7 @@ contract("Cashback script", function(accounts) {
         console.log("Current block " + toBlock);
 
         cashbackInfo = await calculateCashback(payment, storage, fromBlock, toBlock);
-        console.log(cashbackInfo);
+       // console.log(cashbackInfo);
 
         // console.log(expectedCashback1);
         // console.log(expectedCashback2);
@@ -285,7 +290,27 @@ contract("Cashback script", function(accounts) {
         assert.equal(cashbackInfo.pending[1].customer, user2, "Invalid pending cashback 3 customer");        
     });
 
+    it("add cashbacks for user", async function() {
+        let customers = Object.keys(cashbackInfo.cashback);
+        let cashbacks = [];
+        for(let i = 0; i < customers.length; ++i) {
+            cashbacks.push(cashbackInfo.cashback[customers[i]]);
+        }
+
+        await discountPolicy.addCashbacks(customers, cashbacks, {from:manager});
+
+        assert.equal(await discountPolicy.totalCashback.call(user1), cashbackInfo.cashback[user1], "User1 got invalid cashback");
+        assert.equal(await discountPolicy.totalCashback.call(user2), cashbackInfo.cashback[user2], "User2 got invalid cashback");
+    });
+
+    it("user1 withdraws his cashback after period 1", async function() {
+        await discountPolicy.withdrawCashback({from:user1});
+        assert.equal(await discountPolicy.totalCashback.call(user1), 0, "User1 hasn't got cashback");
+    });
+
     it("2nd period. Pending transactions from the previous period should be added", async function() {
+        await token.transfer(user3, LevelTokens[2]);
+
         await payment.complain(1, 7, {from:user1});
         await payment.resolve(1, 7, true, {from:escrow});        
 
@@ -310,15 +335,66 @@ contract("Cashback script", function(accounts) {
         tx = await buy(0, 1, user1);
         expectedCashback1 += getCashbackFromPayment(tx);
 
+        tx = await buy(1, 2, user3);
+
         fromBlock = toBlock;
         toBlock = web3.eth.blockNumber; 
         cashbackInfo = await calculateCashback(payment, storage, fromBlock, toBlock, cashbackInfo);
-        console.log(cashbackInfo);
+       // console.log(cashbackInfo);
 
         assert.equal(cashbackInfo.cashback[user1.toString()], expectedCashback1, "Invalid cashback for user1");
         assert.equal(cashbackInfo.cashback[user2.toString()], expectedCashback2, "Invalid cashback for user2");
-        assert.equal(cashbackInfo.cashback[user3.toString()], undefined, "Invalid cashback for user3");
+        assert.equal(cashbackInfo.cashback[user3.toString()], expectedCashback3, "Invalid cashback for user3");
 
-        assert.equal(cashbackInfo.pending.length,0,"Invalid number of pending cashbacks");
-    })
+        assert.equal(cashbackInfo.pending.length, 1, "Invalid number of pending cashbacks");        
+        assert.equal(cashbackInfo.pending[0].purchaseId, 11, "Invalid pending cashback 2");
+        assert.equal(cashbackInfo.pending[0].customer, user3, "Invalid pending cashback 2 customer");        
+    });
+
+    it("add cashbacks for users after period 2", async function() {
+        let oldCashbackUser2 = await discountPolicy.totalCashback.call(user2)
+
+        console.log();     
+        let customers = Object.keys(cashbackInfo.cashback);
+        let cashbacks = [];
+        for(let i = 0; i < customers.length; ++i) {
+            cashbacks.push(cashbackInfo.cashback[customers[i]]);
+        }
+
+        await discountPolicy.addCashbacks(customers, cashbacks, {from:manager});
+
+        assert.equal(
+            await discountPolicy.totalCashback.call(user1), 
+            cashbackInfo.cashback[user1], 
+            "User1 got invalid cashback");
+        
+        assert.equal(
+            await discountPolicy.totalCashback.call(user2), 
+            oldCashbackUser2.plus(cashbackInfo.cashback[user2]).toNumber(), 
+            "User2 got invalid cashback"
+        );
+    });
+
+    it("users withdraw their cashback", async function() {
+        let expected1 = await discountPolicy.totalCashback.call(user1);
+        let expected2 = await discountPolicy.totalCashback.call(user2);
+        
+        let balance = await utils.getBalance(user1);
+        let tx = await discountPolicy.withdrawCashback({from:user1, gasPrice:gasPrice});        
+        assert.equal(await discountPolicy.totalCashback.call(user1), 0, "User1 hasn't got cashback");
+        assert.equal(
+            (await utils.getBalance(user1)).toNumber(),
+            balance.minus(tx.receipt.gasUsed*gasPrice).plus(expected1).toNumber(),
+            "Invalid cashback withdrawn by user1"
+        );
+
+        balance = await utils.getBalance(user2);
+        tx = await discountPolicy.withdrawCashback({from:user2, gasPrice:gasPrice});        
+        assert.equal(await discountPolicy.totalCashback.call(user2), 0, "User2 hasn't got cashback");
+        assert.equal(
+            (await utils.getBalance(user2)).toNumber(),
+            balance.minus(tx.receipt.gasUsed*gasPrice).plus(expected2).toNumber(),
+            "Invalid cashback withdrawn by user2"
+        );
+    });
 });

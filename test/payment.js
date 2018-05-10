@@ -63,7 +63,7 @@ async function prepare(accounts) {
     discountPolicy = await utils.createDiscountPolicy(MinPoolForDiscount, DiscountsInPool, MaxDiscount, pool, token, LevelTokens, LevelPcts);
     storage = await utils.createProductStorage();
     factory = await utils.createProductFactory(storage);
-    etherPriceProvider = await utils.createEtherPriceProvider(WeisForCent); //1 eth = 1000$
+    etherPriceProvider = await utils.createEtherPriceProvider(WeisForCent); //1 eth = 1000$    
     feePolicy = await utils.createFeePolicy(
         storage, FeePermille, EscrowFeePermille, FiatPriceFeePermille, etherFund.address, token,
         MinTokensForFeeDiscount, FeeDiscountTerm, MaxTotalDiscountPerToken, FeeDiscountPermille
@@ -108,7 +108,7 @@ contract("ProductPayment. Set parameters", function(accounts) {
         await prepare(accounts);
     });
 
-    it("check parameters after creation", async function() {
+    it("check parameters after creation", async function() {        
         assert.isTrue(await payment.activeState.call(), "Should be active");
         assert.equal(storage.address, await payment.productStorage.call(), "Invalid storage");
         assert.equal(feePolicy.address, await payment.feePolicy.call(), "Invalid fee policy");
@@ -981,11 +981,11 @@ contract("ProductPayment. Fiat price. 1 ETH = 1000$", function(accounts) {
 contract("ProductPayment. Buy with tokens (bancor)", function(accounts) {
     let bcsConverter;
     let quickConverter;
-    //let quickSellPath;
     let ethToken;
     let bntToken;
     let bntConverter;
     let bancor;    
+    let quickBuyPath;
 
     before(async function() {
         await prepare(accounts);
@@ -995,13 +995,20 @@ contract("ProductPayment. Buy with tokens (bancor)", function(accounts) {
         ethToken = bancor.ethToken;
         bntToken = bancor.bntToken;
         bntConverter = bancor.bntConverter;
-        relayToken = bancor.relayToken;
-        await token.approve(bcsConverter.address, await utils.TB(token, owner), {from:owner});
+        relayToken = bancor.relayToken;        
+
+        quickBuyPath = [
+            bancor.ethToken.address,
+            bancor.bntToken.address,
+            bancor.bntToken.address,
+            bancor.relayToken.address,
+            token.address
+        ];
     });
 
     // it("check bancor setup, sell 1 bcs", async function() {
     //     let amount = OneEther; //1 bcs
-
+            //await token.approve(bcsConverter.address, await utils.TB(token, owner), {from:owner});
     //     let oldTokens = await utils.TB(token, owner);
     //     let oldBalance = await utils.getBalance(owner);
     //     let tx = await bcsConverter.quickConvert(quickSellPath, amount, 1, {from:owner, gasPrice: gasPrice});
@@ -1039,7 +1046,7 @@ contract("ProductPayment. Buy with tokens (bancor)", function(accounts) {
         console.log(`We need ${ethAmount/OneEther} ETH to buy ${bcsAmount/OneEther} BCS`);
     });
 
-    it("purchase using BCS with customer discount", async function() {
+    it("purchase using BCS", async function() {
         await createProduct();
         let tokensToUser = LevelTokens[2];
 
@@ -1047,9 +1054,8 @@ contract("ProductPayment. Buy with tokens (bancor)", function(accounts) {
         await token.transfer(user1, tokensToUser); //not enough for discount but enough for purchase
         await token.approve(payment.address, tokensToUser*2, {from:user1});
 
-        let tokens = await utils.calculateBancorBcsForEth(token, bancor, Price1);
-
-        //let ethEqv = await utils.getBancorEth(token, bancor, tokens);
+        let tokens = await utils.calculateBancorBcsForEth(token, bancor, Price1);        
+        let ethEqv = await utils.getBancorEth(token, bancor, tokens);
         let oldVendorBalance = await utils.getBalance(vendor);
         let oldCustomerBalance = await utils.getBalance(user1);
 
@@ -1061,9 +1067,9 @@ contract("ProductPayment. Buy with tokens (bancor)", function(accounts) {
         console.log("Gas used: " + tx.receipt.gasUsed);
         let newSum = (await utils.TB(token, user1)) + (await utils.TB(token, bcsConverter.address)) + (await utils.TB(token, quickConverter.address));
 
-        assert.isAbove(
+        assert.equal(
             (await utils.getBalance(user1)).toNumber(),
-            oldCustomerBalance.minus(gasPrice*tx.receipt.gasUsed).plus(MinPoolForDiscount/DiscountsInPool).toNumber(),
+            oldCustomerBalance.minus(gasPrice*tx.receipt.gasUsed).plus(ethEqv-Price1).toNumber(),
             "Invalid user balance"
         );
         assert.equal(oldSum, newSum, "Sum of tokens shouldn't be changed");
@@ -1073,6 +1079,22 @@ contract("ProductPayment. Buy with tokens (bancor)", function(accounts) {
             "Invalid vendor balance"
         );
         assert.equal(tokens + (await utils.TB(token, user1)), tokensToUser, "Invalid tokens left for customer");
+    });    
+
+    it("purchase using BCS, not enough BCS for purchase, should fail", async function() {
+        let tokens = await utils.calculateBancorBcsForEth(token, bancor, Price1);
+        let tokensToUser = tokens * 8 / 10;
+        let expectedEth = await utils.getBancorEth(token, bancor, tokensToUser);
+        
+        await token.transfer(user2, tokensToUser);
+        await token.approve(payment.address, tokensToUser, {from:user2});
+                        
+        assert.equal(await utils.TB(token, user2), tokensToUser, "Invalid user token balance");
+        assert.isAbove(Price1, expectedEth, "converted price should be below the required");
+
+        await utils.expectContractException(async function() {
+            let tx = await payment.buyWithTokens(tokensToUser, 0, 1, "ID", true, Price1, {from:user2, gasPrice:gasPrice});
+        });        
     });
 
     it("buy tokens via bancor", async function() {
@@ -1080,27 +1102,63 @@ contract("ProductPayment. Buy with tokens (bancor)", function(accounts) {
 
         let value = OneEther/100;
         let oldBcsBalance = await utils.TB(token, user2);
-        let bcsExpected = await utils.getBancorBcs(token, bancor, value);
-        // console.log(token.address);
-        // console.log("Old tokens " + oldBcsBalance);
-        // console.log("Expected " + bcsExpected);        
-        //let tx = await web3.eth.sendTransaction({from:user2, to:bcsConverter.address, value:value, gas:700000});   
-        let quickBuyPath = [
-            await bcsConverter.quickBuyPath.call(0),
-            await bcsConverter.quickBuyPath.call(1),
-            await bcsConverter.quickBuyPath.call(2),
-            await bcsConverter.quickBuyPath.call(3),
-            await bcsConverter.quickBuyPath.call(4)
-        ];
+        let bcsExpected = await utils.getBancorBcs(token, bancor, value);        
+        //let tx = await web3.eth.sendTransaction({from:user2, to:bcsConverter.address, value:value, gas:700000});           
         let tx = await bcsConverter.quickConvert(quickBuyPath, value, bcsExpected*0.9, {from:user2, value:value});
         let newBcsBalance = await utils.TB(token, user2);
-        // console.log("New tokens " + newBcsBalance);
-        // let tokensRecevied = (await utils.TB(token, user2)) - oldBcsBalance;
-        // console.log("Tokens received " + tokensRecevied);                
         assert.equal(oldBcsBalance + bcsExpected, newBcsBalance, "Invalid tokens received");
+    });
+
+    it("buy tokens via bancor, fail as less than minReturn", async function() {
+        let value = OneEther/100;
+        let bcsExpected = await utils.getBancorBcs(token, bancor, value);
+
+        await utils.expectContractException(async function() {
+            await bcsConverter.quickConvert(quickBuyPath, value, bcsExpected*1.2, {from:user2, value:value});
+        });      
     });
 });
 
+
+contract("ProductPayment. compare cashback: BCS vs ETH purchase", function(accounts) {
+    let bcsConverter;
+    let quickConverter;
+    let ethToken;
+    let bntToken;
+    let bntConverter;
+    let bancor;    
+    let quickBuyPath;
+
+    before(async function() {
+        await prepare(accounts);
+        bancor = await utils.createBancor(bancorOwner, owner, token, payment, artifacts);
+    });
+
+    it("", async function() {
+        await createProduct();
+        let tokensToUser = LevelTokens[2];
+
+        await utils.sendEther(owner, pool.address, MinPoolForDiscount);
+        await token.transfer(user1, tokensToUser); 
+        await token.transfer(user2, tokensToUser); 
+        await token.approve(payment.address, tokensToUser, {from:user1});
+
+        let tokens = await utils.calculateBancorBcsForEth(token, bancor, Price1);        
+        let ethEqv = await utils.getBancorEth(token, bancor, tokens);        
+        
+        let tx = await payment.buyWithTokens(tokens, 0, 1, "ID", true, Price1, {from:user1, gasPrice:gasPrice});
+        //console.log(tx.logs[0].args.discount);
+        
+        let tx2 = await buy({customer:user2});
+       // console.log(tx2.logs[0].args.discount);
+
+        assert.isAbove(
+            tx2.logs[0].args.discount.toNumber(), 
+            tx.logs[0].args.discount, 
+            "Cashback should be higher when purchasing for eth"
+        );
+    });  
+});
 
 
 contract("ProductPayment. Replace payment contract", function(accounts) {
@@ -1165,7 +1223,13 @@ contract("ProductPayment. Replace payment contract", function(accounts) {
     });
 });
 
-
+contract("measure gas", function(accounts) {
+    it("", async function() {
+        await prepare(accounts);
+        console.log("EtherPriceProvider: " + web3.eth.getTransactionReceipt(etherPriceProvider.transactionHash).gasUsed);  
+        console.log("ProducttPayment: " + web3.eth.getTransactionReceipt(payment.transactionHash).gasUsed);  
+    });
+});
 
 // contract("ProductPayment. Withdraw multiple pendings. Gas. ", function(accounts) {
 //     beforeEach(async function() {
@@ -1312,7 +1376,6 @@ contract("ProductPayment. Replace payment contract", function(accounts) {
 //         await payment.buyWithEth(0, 2, "ID", true, price, {from:user2, value:100000});
 //     });
 // });
-
 
 /*
 тесты

@@ -204,3 +204,63 @@ contract("EtherHolder", function (accounts) {
         });
     });
 });
+
+
+contract("TokenHolder", function(accounts) {
+    let TokenHolder = artifacts.require("TokenHolder");
+    let holder;
+    let token;
+
+    beforeEach(async function() {
+        owner = accounts[0];
+        manager = accounts[1];
+        user = accounts[2];
+
+        token = await utils.createToken(1000, 0);
+        holder = await TokenHolder.new();
+        await holder.setManager(manager, true);
+
+        await token.transfer(holder.address, 500);
+    });    
+
+    async function checkWithdraw(from, receiver, amount) {
+        let balanceOwner = await utils.TB(token, receiver);
+        let balanceHolder = await utils.TB(token, holder.address);
+        await holder.withdrawTokens(token.address, receiver, amount, {from:from});
+
+        assert.equal(
+            await utils.TB(token, receiver),
+            balanceOwner + amount,
+            "Invalid balance withdrawn"
+        );
+
+        assert.equal(
+            await utils.TB(token, holder.address),
+            balanceHolder - amount,
+            "Invalid balance left"
+        );
+    }
+
+    it("withdraw as owner", async function() {
+        let tokens = await utils.TB(token, holder.address);
+        await checkWithdraw(owner, owner, tokens);
+    });
+
+    it("withdraw as manager", async function() {
+        await checkWithdraw(manager, accounts[6], 160);
+    });
+
+    it("can't withdraw as not manager/owner", async function() {
+        assert.isFalse(await holder.managers.call(user), "User shouldn't be manager");
+        await utils.expectContractException(async function() {
+            await holder.withdrawTokens(token.address, user, 10, {from:user}); 
+        });
+    });
+
+    it("can't withdraw more than max", async function() {
+        let tokens = await utils.TB(token, holder.address);
+        await utils.expectContractException(async function() {
+            await holder.withdrawTokens(token.address, user, +tokens + 1); 
+        });
+    });    
+});

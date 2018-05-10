@@ -1,11 +1,12 @@
+let __e18 = 1000000000000000000;
+
 let Utils = function(web3, _artifacts) {
     this._web3 = web3;
+    this.E18 = __e18;
     if(_artifacts != undefined) {
         artifacts = _artifacts;
     }
 }
-
-let __e18 = 1000000000000000000;
 
 module.exports = Utils;
 
@@ -271,6 +272,8 @@ async function(owner, bcsOwner, token, payment, artifacts) {
 
     await token.transfer(bcsConverter.address, initialBcs, {from:bcsOwner});
     await bntToken.transfer(bcsConverter.address, initialBnt2, {from:bcsOwner});
+    console.log("BNT deposited to BCSRelay: " + initialBnt2.toString());
+    console.log("ETH in BNT relay: " + initialEth.toString());
 
     let quickSellPath = [
         token.address, 
@@ -279,7 +282,8 @@ async function(owner, bcsOwner, token, payment, artifacts) {
         bntToken.address, 
         ethToken.address
     ];
-    await payment.setConvertParams(quickConverter.address, quickSellPath);
+    //await payment.setConvertParams(quickConverter.address, quickSellPath); 
+    await payment.setConvertParams(bcsConverter.address, quickSellPath);
 
     return {
         ethToken: ethToken,
@@ -308,6 +312,7 @@ async function(bcsToken, bancor, amount = __e18) {
     let ethExpected = await bancor.bntConverter.getReturn(bancor.bntToken.address, bancor.ethToken.address, bntExpected);
     return ethExpected.toNumber();
 }
+
 
 //returns how many BCS (*E18) can be approximately exchanged to receive given amount of ETH
 //returns 5% more tokens to ensure that there would be enough tokens for purchase

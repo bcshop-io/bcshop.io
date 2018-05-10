@@ -155,6 +155,12 @@ contract("ProductStorage. ", function(accounts) {
         });
     });
 
+    it("can't set vendor fee more than 1000", async function() {
+        await utils.expectContractException(async function() {
+            await storage.setVendorInfo(owner, wallet, 1500);
+        })
+    });
+
     it("can't call setVendorInfo as not manager", async function() {
         try {
             await storage.setVendorInfo(owner, wallet, 100, {from:user});

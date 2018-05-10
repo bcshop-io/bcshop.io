@@ -172,3 +172,10 @@ contract("ProxyFund. Access", function(accounts) {
         assert.equal(await proxy.getBalance.call(), amount, "Invalid amount left");
     });
 });
+
+contract("ProxyFund. measure gas", function(accounts) {
+    it("crate proxy fund", async function() {
+        proxy = await ProxyFund.new();
+        console.log("Fund: " + web3.eth.getTransactionReceipt(proxy.transactionHash).gasUsed);
+    });
+});

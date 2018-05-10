@@ -16,7 +16,7 @@ const EscrowFeePermille = 50;
 const FiatPriceFeePermille = 70;
 const MinEscrowFee = utils.toWei(0.02);
 const MinTokensForDiscount = utils.toWei(1);
-const TermDuration = 1000;
+const TermDuration = 2592000;
 const MaxDiscountPerToken = utils.toWei(0.1);
 const FeeDiscountPermille = 600;
 
@@ -378,5 +378,20 @@ contract("FeePolicy. calculateFeeAmount", function(accounts) {
 
     it("can call calculateFeeAmount as owner", async function() {
         await feePolicy.calculateFeeAmount(user, 0, utils.toWei(1), {from:owner});
+    });
+});
+
+
+contract("FeePolicy. Measure gas", function(accounts) {
+    owner = accounts[0];
+    user1 = accounts[1];
+    user2 = accounts[2];
+    manager = accounts[3];
+    user3 = accounts[4];
+    user4 = accounts[5];
+
+    it("", async function() {
+        await prepare(); 
+        console.log("FeePolicy: " + web3.eth.getTransactionReceipt(feePolicy.transactionHash).gasUsed);       
     });
 });

@@ -1,5 +1,6 @@
 var Web3 = require("web3");
 var web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
+let utils = new (require("./utils.js"))(web3);
 
 var Fund = artifacts.require("EtherFund");
 
@@ -26,13 +27,22 @@ contract("EtherFund", function(accounts) {
     var amountUser1;
     var amountUser2;
 
+    it("creates fund with invalid shares (overflow test), should fail", async function() {
+        await utils.expectContractException(async function() {
+            fund = await Fund.new(user1, 65535, user2, 1001);
+            console.log(await fund.sharePermille.call(user1));
+            console.log(await fund.sharePermille.call(user2));
+        });
+    });
+
     it("creates fund with 20/80 distribution", async function() {
         fund = await Fund.new(user1, share1, user2, share2);
 
         assert.equal(await fund.sharePermille.call(user1), share1, "Invalid share of user1");
         assert.equal(await fund.sharePermille.call(user2), share2, "Invalid share of user2");        
         assert.equal(await fund.etherBalanceOf.call(user1), 0, "Initial user1 balance should be 0");
-    })
+    });
+
 
     it("try to create fund with invalid distribution 60/60, should fail", async function() {
         try {
@@ -137,6 +147,17 @@ contract("EtherFund", function(accounts) {
         throw "withdraw should fail";
     })
 
+    it("try to change shares to invalid values (overflow test). should fail", async function() {
+        try {
+            await fund.changeShares(user1, 65535, user2, 1001);
+            console.log(await fund.sharePermille.call(user1));
+            console.log(await fund.sharePermille.call(user2));
+        } catch(e) {
+            return true;
+        }
+        throw "Function should fail";
+    })
+
     it("try to change shares to invalid 20/30. should fail", async function() {
         try {
             await fund.changeShares(user1, 200, user2, 300);
@@ -221,20 +242,15 @@ contract("EtherFund", function(accounts) {
 
     it("try to copy state as not an owner", async function() {
         newFund = await Fund.new(user1, share1, user3, share2);
-        try {            
-            await newFund.copyStateFor(fund.address, user1, {from:user2});
-        } catch(e) {
-            return true;
-        }
-        throw "Migrate should fail";
+        await utils.expectContractException(async function() {
+            await newFund.copyStateFor(fund.address, [user1, user3], {from:user2});
+        });
     })
 
     it("migrate to another fund", async function() {
         newFund = await Fund.new(user1, share1, user3, share2);
         await fund.migrate(newFund.address);
-
-        await newFund.copyStateFor(fund.address, user1);
-        await newFund.copyStateFor(fund.address, user3);
+        let tx = await newFund.copyStateFor(fund.address, [user1, user3]);
 
         assert.equal(await newFund.etherBalanceOf(user1), lastBalance1, "User1 balance should be equal to old User1");
         assert.equal(await newFund.etherBalanceOf(user3), lastBalance2, "User3 balance should be equal to old User3");
@@ -261,6 +277,15 @@ contract("EtherFund", function(accounts) {
         lastBalance2 = lastBalance2 - amountUser2;
         assert.equal(newBalance.minus(oldBalance).toNumber() + gasUsedCost, amountUser2, "User3 should receive its amount");
         assert.equal(await newFund.etherBalanceOf.call(user3), lastBalance2, "Invalid user3 claiamble ether")        
+    })
+
+    it("try to change shares to invalid (overflow test). should fail", async function() {
+        try {
+            let tx = await fund.changeShares3(user1, 65535, user3, 301, user4, 700);
+        } catch(e) {
+            return true;
+        }
+        throw "Function should fail";
     })
 
     it("try to change shares to invalid 20/30/70. should fail", async function() {

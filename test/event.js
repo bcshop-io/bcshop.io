@@ -46,10 +46,11 @@ contract("Example events", function(accounts) {
         await example.set(accounts[1], 15, false, "hi", 0x616263);
         await example.emitEvent();
 
-        await example.set(accounts[1], 2, true, "hi", 0x67626369);
+        await example.set(accounts[1], 2, true, "hiii", 0x67626369);
         await example.emitEvent();        
         
-        var event = example.TestEvent({_addrVar:accounts[0]}, {fromBlock: 0, toBlock: 'latest'});
+        //var event = example.TestEvent({_addrVar:accounts[1]}, {fromBlock: 0, toBlock: 'latest'});
+        var event = example.TestEvent({}, {fromBlock: 0, toBlock: 'latest'});
         var res = event.get(function(error, result) {
             //console.log(error);
             console.log("!");

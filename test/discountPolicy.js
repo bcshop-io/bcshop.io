@@ -653,7 +653,8 @@ contract("DiscountPolicy. Measure gas", function(accounts) {
     user4 = accounts[5];
 
     before(async function() {
-        await prepare(accounts, 2 * MinPoolBalance);        
+        await prepare(accounts, 2 * MinPoolBalance); 
+        console.log("DiscountPolicy: " + web3.eth.getTransactionReceipt(discountPolicy.transactionHash).gasUsed);       
     });
 
     function checkGas(user, purchase, expected, comment="") {
