@@ -33,8 +33,9 @@ contract VendorApprove is TokenHolder {
     //
     // Methods
 
-    function VendorApprove(IERC20Token _token, uint256 _tokensForApproval) public {
+    function VendorApprove(IERC20Token _token, uint256 _tokensForApproval, address[] users) public {
         setParams(_token, _tokensForApproval);
+        setAllowedUsers(true, users);
     }
 
     function setParams(IERC20Token _token, uint256 _tokensForApproval) public ownerOnly {
@@ -42,7 +43,15 @@ contract VendorApprove is TokenHolder {
         tokensForApproval = _tokensForApproval;
     }
 
-    /**@dev Call this to request approval, throws exception if there is another request pending */
+    /**@dev Allows or denies particular users to manage approvals  */
+    function setAllowedUsers(bool state, address[] users) public ownerOnly {
+        for(uint256 i = 0; i < users.length; ++i) {
+            allowedUsers[users[i]] = state;
+        }
+    }
+
+    /**@dev Call this to request approval, throws exception if there is another request pending.
+    Tokens should be approved for transfer prior to calling this */
     function requestApprove() public {
         require(requests[msg.sender] == 0);
 
@@ -71,9 +80,9 @@ contract VendorApprove is TokenHolder {
 
         ApprovalGranted(sender, state);
 
-        if(!state) {
-            require(token.transfer(sender, requests[msg.sender]));
-            requests[msg.sender] = 0;
+        if(!state) {        
+            require(token.transfer(sender, requests[sender]));            
         }
+        requests[sender] = 0;
     }
 }
