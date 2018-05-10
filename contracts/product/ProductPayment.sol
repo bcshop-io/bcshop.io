@@ -35,8 +35,7 @@ contract ProductPayment is EtherHolder, Active {
     IEtherPriceProvider public etherPriceProvider;
     //token that can be used as payment tool
     IERC20Token public token;
-    // Bancor quick converter to convert BCS to ETH. Important: this is NOT a BancorConverter contract.
-    // This must be set to the corresponding BancorConverter.extensions.quickConverter   
+    // Bancor converter to convert BCS to ETH. 
     IBancorConverter public converter;
     // escrow payment hold time in seconds 
     uint256 public escrowHoldTime; 
@@ -138,11 +137,10 @@ contract ProductPayment is EtherHolder, Active {
     ) 
         public
     {
-        //transfer tokens to this contract for exchange
-        token.transferFrom(msg.sender, converter, tokens);
-
-        //exchange through Bancor
-        uint256 ethAmount = converter.convertFor(convertPath, tokens, 1, this);
+        //store bcsConverter, access via extensions
+        IBancorQuickConverter quickConverter = converter.extensions().quickConverter();
+        token.transferFrom(msg.sender, quickConverter, tokens);        
+        uint256 ethAmount = quickConverter.convertFor(convertPath, tokens, 1, this);
 
         //use received ether for payment
         buy(ethAmount, productId, units, clientId, acceptLessUnits, currentPrice);
@@ -252,7 +250,7 @@ contract ProductPayment is EtherHolder, Active {
         //check for active flag and valid price
         require(productStorage.isProductActive(productId) && currentPrice == price);        
         
-        uint256 unitsToBuy = getUnitsToBuy(productId, units, acceptLessUnits);
+        uint256 unitsToBuy = getUnitsToBuy(productId, units, acceptLessUnits);        
         //check if there is enough units to buy
         require(unitsToBuy > 0);
         
