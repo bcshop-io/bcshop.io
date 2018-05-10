@@ -13,6 +13,9 @@ contract EtherFund is Owned, SafeMath, IFund {
     event ReceiverChanged(address indexed oldOne, address indexed newOne);
     event ShareChanged(address indexed receiver, uint16 share);
 
+
+    uint16 constant MAXPERMILLE = 1000;
+    
     /**@dev The share of a specific address, in permille (1/1000) */
     mapping (address => uint16) public sharePermille;
 
@@ -29,7 +32,8 @@ contract EtherFund is Owned, SafeMath, IFund {
     uint public sumDeposits;    
 
     function EtherFund(address receiver1, uint16 share1, address receiver2, uint16 share2) {
-        require(share1 + share2 == 1000);
+        require(share1 <= MAXPERMILLE && share2 <= MAXPERMILLE);
+        require(share1 + share2 == MAXPERMILLE);
 
         sharePermille[receiver1] = share1;
         sharePermille[receiver2] = share2;
@@ -49,11 +53,13 @@ contract EtherFund is Owned, SafeMath, IFund {
     }
 
     /**@dev Copies internal state of another fund for specific receiver */
-    function copyStateFor(EtherFund otherFund, address receiver) public ownerOnly {
-        sharePermille[receiver] = otherFund.sharePermille(receiver);
-        etherBalance[receiver] = otherFund.etherBalance(receiver);
-        lastSumDeposits[receiver] = otherFund.lastSumDeposits(receiver);
-
+    function copyStateFor(EtherFund otherFund, address [] receivers) public ownerOnly {
+        for(uint256 i = 0; i < receivers.length; ++i) {
+            sharePermille[receivers[i]] = otherFund.sharePermille(receivers[i]);
+            etherBalance[receivers[i]] = otherFund.etherBalance(receivers[i]);
+            lastSumDeposits[receivers[i]] = otherFund.lastSumDeposits(receivers[i]);
+        }
+        
         lastBalance = otherFund.lastBalance();
         sumDeposits = otherFund.sumDeposits();
     }
@@ -109,6 +115,7 @@ contract EtherFund is Owned, SafeMath, IFund {
         public 
         ownerOnly
     {
+        require(share1 <= MAXPERMILLE && share2 <= MAXPERMILLE);
         //check the input parameters, sum should be unchanged
         require(share1 + share2 == sharePermille[receiver1] + sharePermille[receiver2]);
 
@@ -128,6 +135,7 @@ contract EtherFund is Owned, SafeMath, IFund {
         public 
         ownerOnly
     {
+        require(share1 <= MAXPERMILLE && share2 <= MAXPERMILLE && share3 <= MAXPERMILLE);
         //check the input parameters, sum should be unchanged
         require(share1 + share2 + share3 == sharePermille[receiver1] + sharePermille[receiver2] + sharePermille[receiver3]);
 
@@ -161,6 +169,6 @@ contract EtherFund is Owned, SafeMath, IFund {
     
     /**@dev How much ether since last deposit can be claimed  */
     function claimableEther(address receiver) internal constant returns (uint256) {
-        return safeSub(deposits(), lastSumDeposits[receiver]) * sharePermille[receiver] / 1000;
+        return safeSub(deposits(), lastSumDeposits[receiver]) * sharePermille[receiver] / MAXPERMILLE;
     }
 }
