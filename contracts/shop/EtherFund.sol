@@ -54,11 +54,20 @@ contract EtherFund is Owned, SafeMath, IFund {
 
     /**@dev Copies internal state of another fund for specific receiver */
     function copyStateFor(EtherFund otherFund, address [] receivers) public ownerOnly {
-        for(uint256 i = 0; i < receivers.length; ++i) {
+        uint256 sum = 0;
+
+        for(uint256 i = 0; i < receivers.length; ++i) {            
             sharePermille[receivers[i]] = otherFund.sharePermille(receivers[i]);
             etherBalance[receivers[i]] = otherFund.etherBalance(receivers[i]);
             lastSumDeposits[receivers[i]] = otherFund.lastSumDeposits(receivers[i]);
+
+            sum = safeAdd(sum, sharePermille[receivers[i]]);
+            
+            require(sharePermille[receivers[i]] <= MAXPERMILLE);
         }
+
+        //check that all the receivers are copied, sum of their shares should equal 1000
+        require(sum == MAXPERMILLE);
         
         lastBalance = otherFund.lastBalance();
         sumDeposits = otherFund.sumDeposits();
