@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.24;
 
 import "../common/Manageable.sol";
 
@@ -8,7 +8,7 @@ contract EtherHolder is Manageable {
     //
     // Methods
 
-    function EtherHolder() public {
+    constructor() public {
     } 
 
     /**@dev withdraws amount of ether to specific adddress */
@@ -16,5 +16,5 @@ contract EtherHolder is Manageable {
         to.transfer(amount);
     }
 
-    function() payable {}
+    function() public payable {}
 }

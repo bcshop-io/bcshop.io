@@ -1,4 +1,4 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
 /**@dev Simple contract for something that supports versioning */
 contract Versioned {

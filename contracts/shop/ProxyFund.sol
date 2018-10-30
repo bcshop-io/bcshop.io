@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.24;
 
 import "./IFund.sol";
 import "../common/Manageable.sol";
@@ -21,16 +21,15 @@ contract ProxyFund is IWallet, Manageable {
     //
     // Methods
 
-    function ProxyFund() public {        
-    } 
+    constructor() public {} 
 
     function setBaseFund(IFund _baseFund) public ownerOnly {
         baseFund = _baseFund;
     }
 
     /**@dev Returns how much ether can be claimed */
-    function getBalance() public constant returns (uint256) {
-        return this.balance + baseFund.etherBalanceOf(this);
+    function getBalance() public view returns (uint256) {
+        return address(this).balance + baseFund.etherBalanceOf(this);
     }
     
     /**@dev Withdraws caller's share  */
@@ -42,11 +41,11 @@ contract ProxyFund is IWallet, Manageable {
     function withdrawTo(address to, uint256 amount) public managerOnly {
         uint256 fundBalance = baseFund.etherBalanceOf(this);
 
-        if (amount <= fundBalance && amount > this.balance) {
+        if (amount <= fundBalance && amount > address(this).balance) {
             baseFund.withdraw(fundBalance);
         }
         to.transfer(amount);
     }
 
-    function () payable {}    
+    function () public payable {}    
 }

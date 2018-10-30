@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.24;
 
 import "./IDiscountPolicy.sol";
 import "../common/SafeMathLib.sol";
@@ -17,6 +17,7 @@ contract DiscountPolicy is Active, EtherHolder, IDiscountPolicy {
     // Events
     event CashbackCalculated(address indexed customer, uint256 amount);
     event CashbackAdded(address indexed customer, uint256 amount);
+    event CashbackWithdrawn(address indexed customer, uint256 amount);
 
 
     //
@@ -35,7 +36,7 @@ contract DiscountPolicy is Active, EtherHolder, IDiscountPolicy {
     //
     // Methods
 
-    function DiscountPolicy(
+    constructor(
         uint256 _minPoolBalance, 
         uint256 _discountsInPool, 
         uint256 _maxDiscountPermille, 
@@ -51,7 +52,7 @@ contract DiscountPolicy is Active, EtherHolder, IDiscountPolicy {
 
 
     /**@dev Returns cashback level % of specific customer  */
-    function getLevelPct(address customer) public constant returns(uint16) {
+    function getLevelPct(address customer) public view returns(uint16) {
         uint256 tokens = token.balanceOf(customer);
         
         if(tokens < levelTokens[0]) {
@@ -69,7 +70,7 @@ contract DiscountPolicy is Active, EtherHolder, IDiscountPolicy {
 
 
     /**@dev Returns discount for specific amount and buyer */
-    function getCustomerDiscount(address customer, uint256 amount) public constant returns(uint256) {
+    function getCustomerDiscount(address customer, uint256 amount) public view returns(uint256) {
         uint16 levelPct = getLevelPct(customer);
 
         if(levelPct > 0) {
@@ -77,9 +78,9 @@ contract DiscountPolicy is Active, EtherHolder, IDiscountPolicy {
             
             if(poolBalance >= minPoolBalance) {
                 uint256 discount = poolBalance * levelPct / (discountsInPool * 100);
-                uint256 maxDiscount = amount * maxDiscountPermille / 1000;
+                uint256 maxDiscount = amount * maxDiscountPermille * levelPct / (1000 * 100);
                 
-                return discount < maxDiscount ? discount : maxDiscount;
+                return discount < maxDiscount ? discount : maxDiscount;                
             }
         }
         return 0;
@@ -96,7 +97,7 @@ contract DiscountPolicy is Active, EtherHolder, IDiscountPolicy {
         if(discount > 0) {
             //accumulate discount
             pool.withdrawTo(this, discount);
-            CashbackCalculated(customer, discount);
+            emit CashbackCalculated(customer, discount);
 
             //Don't add the cashback here. it will be calculated later by oracle once a certain period
             //totalCashback[customer] = totalCashback[customer].safeAdd(discount);            
@@ -111,6 +112,7 @@ contract DiscountPolicy is Active, EtherHolder, IDiscountPolicy {
         totalCashback[msg.sender] = 0;
         
         msg.sender.transfer(amount);
+        emit CashbackWithdrawn(msg.sender, amount);
     }
 
 
@@ -120,7 +122,7 @@ contract DiscountPolicy is Active, EtherHolder, IDiscountPolicy {
 
         for(uint256 i = 0; i < customers.length; ++i) {
             totalCashback[customers[i]] = totalCashback[customers[i]].safeAdd(amounts[i]);
-            CashbackAdded(customers[i], amounts[i]); 
+            emit CashbackAdded(customers[i], amounts[i]); 
         }
     }
 
@@ -148,7 +150,7 @@ contract DiscountPolicy is Active, EtherHolder, IDiscountPolicy {
         require(paramsValid());
     }
 
-    function paramsValid() internal constant returns (bool) {
+    function paramsValid() internal view returns (bool) {
         if(maxDiscountPermille > 1000) {
             return false;
         }

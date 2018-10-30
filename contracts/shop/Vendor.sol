@@ -1,9 +1,9 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
-import './Product.sol';
-import './VendorBase.sol';
-import './IVendor.sol';
-import './IVendorManager.sol';
+import "./Product.sol";
+import "./VendorBase.sol";
+import "./IVendor.sol";
+import "./IVendorManager.sol";
 import "../common/Versioned.sol";
 
 ///Vendor-provider agreement with the ability to create products
@@ -27,7 +27,7 @@ contract Vendor is VendorBase, Versioned, IVendor {
         _;
     }
 
-    function Vendor(
+    constructor(
         IVendorManager manager, 
         string vendorName, 
         address vendorWallet, 
@@ -48,24 +48,24 @@ contract Vendor is VendorBase, Versioned, IVendor {
         providerFeePromille = feeInPromille;
         
         version = 1;
-        Created(vendorName, version, feeInPromille, vendorWallet);
+        emit Created(vendorName, version, feeInPromille, vendorWallet);
     } 
 
     /**@dev IVendor override. Returns count of products */
-    function getProductsCount() public constant returns (uint32) {
+    function getProductsCount() public view returns (uint32) {
        return uint32(products.length);
     }
 
     function setParams(address newWallet, string newName) public ownerOnly {
         vendor = newWallet;
         name = newName;
-        ParametersChanged(vendor, name);
+        emit ParametersChanged(vendor, name);
     } 
 
     /**@dev IVendor override. Adds product to storage */
     function addProduct(address product) public factoryOnly {
         products.push(product);
-        ProductCreated(product);
+        emit ProductCreated(product);
     }
 
     /**@dev Sets new fee, only owner of vendor manager should call it */

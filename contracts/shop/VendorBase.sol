@@ -1,8 +1,8 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
-import '../common/Manageable.sol';
-import '../common/Owned.sol';
-import './IVendorManager.sol';
+import "../common/Manageable.sol";
+import "../common/Owned.sol";
+import "./IVendorManager.sol";
 
 /// An interface to Vendor object, stored in product as an owner 
 contract VendorBase is Owned {    

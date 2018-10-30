@@ -1,4 +1,4 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
 import "../common/Active.sol";
 import "../token/FloatingSupplyToken.sol";
@@ -18,13 +18,13 @@ contract BonusStore is Active {
     /**@dev Token generator that give Ether to compensate bonus tokens */
     ITokenGenerator public generator;
 
-    function BonusStore(ITokenGenerator _generator, ICheckList _allowedProducts) {
+    constructor(ITokenGenerator _generator, ICheckList _allowedProducts) public {
         generator = _generator;
         allowedProducts = _allowedProducts;
     }
 
     /**@dev allows to receive ether directly */
-    function () payable {}
+    function () public payable {}
 
     /**@dev Sets fund to new one */
     function setTokenGenerator(ITokenGenerator newGenerator) public ownerOnly {
@@ -32,7 +32,7 @@ contract BonusStore is Active {
     }
 
     /**@dev Buys specific product for Bonus Tokens. User should first call 'approve' on token contract */
-    function buy(IProduct product, string clientId, uint32 units, uint256 currentPrice) activeOnly {
+    function buy(IProduct product, string clientId, uint32 units, uint256 currentPrice) public activeOnly {
         require(allowedProducts.contains(product));
 
         //calculate the amount of tokens to pay
@@ -48,6 +48,6 @@ contract BonusStore is Active {
         //call product.buy
         product.buy.value(etherAmount)(clientId, false, currentPrice);
 
-        ProductBought(msg.sender, product, clientId, currentPrice, units);
+        emit ProductBought(msg.sender, product, clientId, currentPrice, units);
     }
 }

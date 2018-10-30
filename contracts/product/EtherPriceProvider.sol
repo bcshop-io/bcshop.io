@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.24;
 
 import "../common/Manageable.sol";
 
@@ -21,12 +21,12 @@ contract EtherPriceProvider is Manageable {
     //
     // Methods
 
-    function EtherPriceProvider() public {
+    constructor() public {
     }
 
     /**@dev sets new ether price, only manager can call this */
     function updateRate(uint256 newRate) public managerOnly {
         rate = newRate;
-        RateUpdated(rate);
+        emit RateUpdated(rate);
     }
 }

@@ -1,10 +1,10 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
-import './Vendor.sol';
-import './IVendor.sol';
-import './IVendorManager.sol';
-import '../common/Owned.sol';
-import '../common/CheckList.sol';
+import "./Vendor.sol";
+import "./IVendor.sol";
+import "./IVendorManager.sol";
+import "../common/Owned.sol";
+import "../common/CheckList.sol";
 
 /**@dev Factory to create and vendors and products */
 contract VendorFactory is Owned, Versioned {
@@ -13,7 +13,7 @@ contract VendorFactory is Owned, Versioned {
 
     IVendorManager public manager;    
 
-    function VendorFactory(IVendorManager _manager) public {
+    constructor(IVendorManager _manager) public {
         manager = _manager;
         version = 1;
     }
@@ -34,7 +34,7 @@ contract VendorFactory is Owned, Versioned {
         vendor.transferOwnership(msg.sender);
         manager.addVendor(msg.sender, vendor);
 
-        VendorCreated(msg.sender, vendor, name, manager.providerFeePromille());
+        emit VendorCreated(msg.sender, vendor, name, manager.providerFeePromille());
         return vendor;
     }
 
@@ -49,7 +49,7 @@ contract VendorFactory is Owned, Versioned {
         vendor.transferOwnership(vendorOwner);
         manager.addVendor(vendorOwner, vendor);
 
-        VendorCreated(vendorOwner, vendor, name, feeInPromille);
+        emit VendorCreated(vendorOwner, vendor, name, feeInPromille);
         return vendor;
     }
 }

@@ -1,4 +1,4 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
 import "../token/ValueTokenAgent.sol";
 import "../token/ReturnTokenAgent.sol";
@@ -44,7 +44,7 @@ contract BonusTokenGenerator is ValueTokenAgent, ReturnTokenAgent, TokenHolder, 
     /**@dev The fund ether balance part at last claim (transfer or withdraw) */
     uint256 lastBalance;    
         
-    function BonusTokenGenerator(
+    constructor(
         ValueToken _realToken, 
         FloatingSupplyToken _bonusToken,              
         uint256 _tokenEtherRate,
@@ -83,7 +83,7 @@ contract BonusTokenGenerator is ValueTokenAgent, ReturnTokenAgent, TokenHolder, 
     /**@dev Changes state of ether spender address  */
     function setEtherSpender(address spender, bool state) public ownerOnly {
         allowedEtherSpenders[spender] = state;
-        AllowedSpenderSet(spender, state);
+        emit AllowedSpenderSet(spender, state);
     }
 
     /**@dev allows another contracts to request ether from this */
@@ -101,7 +101,7 @@ contract BonusTokenGenerator is ValueTokenAgent, ReturnTokenAgent, TokenHolder, 
 
         etherFund.withdrawTo(msg.sender, amount);        
 
-        EtherRequested(msg.sender, amount);
+        emit EtherRequested(msg.sender, amount);
     }
 
     /**@dev ReturnTokenAgent override */
@@ -136,7 +136,7 @@ contract BonusTokenGenerator is ValueTokenAgent, ReturnTokenAgent, TokenHolder, 
     }
    
     /**@dev how many tokens can be issued to specific account */
-    function bonusTokensToIssue(address holder) public constant returns (uint256) {
+    function bonusTokensToIssue(address holder) public view returns (uint256) {
         return safeAdd(bonusTokenPoints[holder], tokensSinceLastUpdate(holder));
     } 
 
@@ -145,19 +145,19 @@ contract BonusTokenGenerator is ValueTokenAgent, ReturnTokenAgent, TokenHolder, 
     //
 
     /**@dev Returns amount of fund ether that goes to token generation */
-    function fundEtherBalance() internal constant returns (uint256) {
+    function fundEtherBalance() internal view returns (uint256) {
         return etherFund.etherBalanceOf(this);
     }
 
     /**@dev Returns amount of tokens generated for specific account since last update*/
-    function tokensSinceLastUpdate(address holder) internal constant returns (uint256) {
+    function tokensSinceLastUpdate(address holder) internal view returns (uint256) {
         return tokenEtherRate * 
             (totalTokenPoints() - lastClaimedPoints[holder]) * valueToken.balanceOf(holder) / 
             MULTIPLIER; 
     }
 
     /**@dev returns total dividend token points up to date */
-    function totalTokenPoints() internal constant returns (uint256) {        
+    function totalTokenPoints() internal view returns (uint256) {        
         return safeAdd(tokenPoints, MULTIPLIER * safeSub(fundEtherBalance(), lastBalance) / valueToken.getValuableTokenAmount());    
     }
 

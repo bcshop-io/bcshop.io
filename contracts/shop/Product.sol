@@ -1,11 +1,11 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
-import './IProductEngine.sol';
-import './VendorBase.sol';
-import '../common/Owned.sol';
-import '../common/ReentryProtected.sol';
-import '../upgrade/LibDispatcher.sol';
-import '../common/Versioned.sol';
+import "./IProductEngine.sol";
+import "./VendorBase.sol";
+import "../common/Owned.sol";
+import "../common/ReentryProtected.sol";
+import "../upgrade/LibDispatcher.sol";
+import "../common/Versioned.sol";
 
 /* 
 IProductEngine Library Dispatcher's storage that initially stores return values 
@@ -13,7 +13,7 @@ for IProductEngines functions
 */
 contract ProductDispatcherStorage is LibDispatcherStorage {
 
-    function ProductDispatcherStorage(address newLib) public
+    constructor(address newLib) public
         LibDispatcherStorage(newLib) {
 
         addFunction("calculatePaymentDetails(IProductEngine.ProductData storage,uint256,bool)", 96);
@@ -36,7 +36,7 @@ contract Product is Owned, Versioned {
     unitPriceInWei - price of one whole unit
     maxProductUnits - amount of smallest units possible for sale or 0 if unlimited.    
     Read IProductEngine.sol for more info on 'denominator', 'price' and 'maxUnits' connection */
-    function Product(        
+    constructor(        
         string productName,
         uint256 unitPriceInWei,         
         uint256 maxProductUnits, 
@@ -50,14 +50,14 @@ contract Product is Owned, Versioned {
         engine.isActive = true;
         engine.denominator = denominator;
         version = 1;
-        Created(productName, version, unitPriceInWei, maxProductUnits);
+        emit Created(productName, version, unitPriceInWei, maxProductUnits);
     }
     
     //function() public payable {}
 
     /**@dev 
     Returns total amount of purchase transactions */
-    function getTotalPurchases() public constant returns (uint256) {
+    function getTotalPurchases() public view returns (uint256) {
         return engine.purchases.length;
     }
 
@@ -65,7 +65,7 @@ contract Product is Owned, Versioned {
     Returns information about purchase with given index */
     function getPurchase(uint256 index) 
         public
-        constant 
+        view 
         returns(uint256 id, address buyer, string clientId, uint256 price, uint256 paidUnits, bool delivered, bool badRating) 
     {
         return (
@@ -82,7 +82,7 @@ contract Product is Owned, Versioned {
     Returns purchase/rating structure index */
     function getUserRatingIndex(address user)
         public
-        constant 
+        view 
         returns (uint256)
     {
         return engine.userRating[user];
@@ -91,7 +91,7 @@ contract Product is Owned, Versioned {
 
     /**@dev 
     Returns pending withdrawal of given buyer */
-    function getPendingWithdrawal(address buyer) public constant returns(uint256) {
+    function getPendingWithdrawal(address buyer) public view returns(uint256) {
         return engine.pendingWithdrawals[buyer];
     }    
 
@@ -113,7 +113,7 @@ contract Product is Owned, Versioned {
     /**@dev Returns payment details - how much units can be bought, and how much to pay  */
     function calculatePaymentDetails(uint256 weiAmount, bool acceptLessUnits)
         public 
-        constant
+        view
         returns(uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
     {
         return engine.calculatePaymentDetails(weiAmount, acceptLessUnits);        

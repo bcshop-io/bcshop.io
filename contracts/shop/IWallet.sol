@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.24;
 
 /**@dev Wallet that stores some amount of currency (eth or tokens) */
 contract IWallet {
@@ -7,7 +7,7 @@ contract IWallet {
     // Methods
 
     /**@dev Returns balance of the wallet */
-    function getBalance() public constant returns (uint256) {}
+    function getBalance() public view returns (uint256) {}
     
     /**@dev Withdraws caller's share */
     function withdraw(uint amount) public;

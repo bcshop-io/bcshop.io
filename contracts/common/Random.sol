@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.24;
 
 /**@dev Based on Random Number Generator from Winem project */
 contract Random {    
@@ -6,7 +6,7 @@ contract Random {
     uint32 MAX = 0xffffffff;
     uint32 current;
 
-    function Random(uint32 seed) {
+    constructor(uint32 seed) public {
         state = seed;
     }
     

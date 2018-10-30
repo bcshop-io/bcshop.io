@@ -1,4 +1,4 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
 import "./Manageable.sol";
 import "./ICheckList.sol";
@@ -9,7 +9,7 @@ contract CheckList is Manageable, ICheckList {
 
     mapping (address=>bool) public contains;
 
-    function CheckList() {
+    constructor() public {
     }
 
     function set(address addr, bool state) public managerOnly {

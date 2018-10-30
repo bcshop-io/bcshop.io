@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.24;
 
 import "../token/IERC20Token.sol";
 import "../token/TokenHolder.sol";
@@ -10,16 +10,19 @@ contract VendorApprove is TokenHolder {
 	
     //
     // Events
-    event ApprovalRequested(address indexed sender);
+    
+    //fired when approve is requested (state:true) or request is canceled by vendor (state:false) 
+    event ApprovalRequested(address indexed sender, bool state);
     event ApprovalGranted(address indexed sender, bool state);
 
 
     //
     // Storage data
     IERC20Token public token;
-    uint256 public tokensForApproval;
-    mapping(address => bool) public allowedUsers;
-    mapping(address => uint256) public requests;
+    uint256 public tokensForApproval;               //the price in tokens for application
+    mapping(address => bool) public allowedUsers;   //users who are allowed to grant approvals
+    mapping(address => uint256) public requests;    //amount of tokens paid for request for each application
+    mapping(address => bool) public approved;       //list of approved applications
 
 
     //
@@ -33,7 +36,7 @@ contract VendorApprove is TokenHolder {
     //
     // Methods
 
-    function VendorApprove(IERC20Token _token, uint256 _tokensForApproval, address[] users) public {
+    constructor(IERC20Token _token, uint256 _tokensForApproval, address[] users) public {
         setParams(_token, _tokensForApproval);
         setAllowedUsers(true, users);
     }
@@ -58,7 +61,18 @@ contract VendorApprove is TokenHolder {
         token.transferFrom(msg.sender, this, tokensForApproval);
         requests[msg.sender] = tokensForApproval;
 
-        ApprovalRequested(msg.sender);
+        emit ApprovalRequested(msg.sender, true);
+    }
+
+    /**@dev call this to cancel request and return deposited tokens */
+    function cancelRequest() public {
+        require(requests[msg.sender] > 0);
+
+        uint256 transferAmount = requests[msg.sender];
+        requests[msg.sender] = 0;
+        require(token.transfer(msg.sender, transferAmount));
+
+        emit ApprovalRequested(msg.sender, false);
     }
 
     /**@dev Approval manager calls this method to grant or deny approval */
@@ -78,11 +92,15 @@ contract VendorApprove is TokenHolder {
     {
         require(requests[sender] > 0);
 
-        ApprovalGranted(sender, state);
+        emit ApprovalGranted(sender, state);
+
+        uint256 transferAmount = requests[sender];
+        requests[sender] = 0;
 
         if(!state) {        
-            require(token.transfer(sender, requests[sender]));            
+            require(token.transfer(sender, transferAmount));            
+        } else {
+            approved[sender] = true;
         }
-        requests[sender] = 0;
     }
 }

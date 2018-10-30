@@ -1,11 +1,11 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
 import "./IOwned.sol";
 
 contract Owned is IOwned {
     address public owner;        
 
-    function Owned() public {
+    constructor() public {
         owner = msg.sender;
     }
 

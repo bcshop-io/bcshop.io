@@ -1,6 +1,6 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
-import '../common/Owned.sol';
+import "../common/Owned.sol";
 
 ///A token that have an owner and a list of managers that can perform some operations
 ///Owner is always a manager too
@@ -10,7 +10,7 @@ contract Manageable is Owned {
 
     mapping (address => bool) public managers;
 
-    function Manageable() public Owned() {
+    constructor() public Owned() {
         managers[owner] = true;
     }
 
@@ -29,6 +29,6 @@ contract Manageable is Owned {
 
     function setManager(address manager, bool state) public ownerOnly {
         managers[manager] = state;
-        ManagerSet(manager, state);
+        emit ManagerSet(manager, state);
     }
 }

@@ -1,7 +1,7 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
 import "../common/IOwned.sol";
-import './IProductEngine.sol';
+import "./IProductEngine.sol";
 
 /**@dev Product abstraction with 'buy' method */
 contract IProduct is IOwned {

@@ -1,11 +1,11 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.24;
 
-import './IProduct.sol';
-import './Product.sol';
-import './IVendor.sol';
-import './IVendorManager.sol';
-import '../common/Owned.sol';
-import '../common/CheckList.sol';
+import "./IProduct.sol";
+import "./Product.sol";
+import "./IVendor.sol";
+import "./IVendorManager.sol";
+import "../common/Owned.sol";
+import "../common/CheckList.sol";
 
 /**@dev Factory to create and vendors and products */
 contract ProductFactory is Owned, Versioned {
@@ -16,7 +16,7 @@ contract ProductFactory is Owned, Versioned {
     IVendorManager public manager;
     ICheckList public allowedProducts;
 
-    function ProductFactory(IVendorManager _manager, ICheckList _allowedProducts) public {
+    constructor(IVendorManager _manager, ICheckList _allowedProducts) public {
         manager = _manager;
         allowedProducts = _allowedProducts;
         version = 1;
@@ -56,9 +56,9 @@ contract ProductFactory is Owned, Versioned {
         vendor.addProduct(address(product));
         allowedProducts.set(product, true);
 
-        ProductCreated(product, vendor, name);        
+        emit ProductCreated(product, vendor, name);        
         return product;
-    }
+    }    
 
     /**@dev Manually adds externally created product to a vendor. 
     In addition to calling this method product ownership should be transfered to vendor*/
@@ -69,6 +69,6 @@ contract ProductFactory is Owned, Versioned {
     {
         vendor.addProduct(address(product));
         allowedProducts.set(product, true);
-        ProductAdded(product, vendor);  
+        emit ProductAdded(product, vendor);  
     }
 }

@@ -1,4 +1,4 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
 //import "./IBonusTokenFund.sol";
 import "../token/ValueTokenAgent.sol";
@@ -45,7 +45,7 @@ contract BonusTokenFund is ValueTokenAgent, ReturnTokenAgent, TokenHolder, SafeM
     /**@dev ether on the moment of last provider withdrawal */
     uint256 public lastWithdrawBalance;
 
-    function BonusTokenFund(
+    constructor(
         ValueToken _realToken, 
         FloatingSupplyToken _bonusToken, 
         uint16 _tokenEtherRate, 
@@ -68,7 +68,7 @@ contract BonusTokenFund is ValueTokenAgent, ReturnTokenAgent, TokenHolder, SafeM
     // }
 
     /**@dev how many tokens can be issued to specific account */
-    function bonusTokensToIssue(address holder) public constant returns (uint256) {
+    function bonusTokensToIssue(address holder) public view returns (uint256) {
         return safeAdd(bonusTokenPoints[holder], tokensSinceLastUpdate(holder));
     } 
 
@@ -117,7 +117,7 @@ contract BonusTokenFund is ValueTokenAgent, ReturnTokenAgent, TokenHolder, SafeM
     //
 
     /**@dev Returns amount of tokens generated for specific account since last update*/
-    function tokensSinceLastUpdate(address holder) internal constant returns (uint256) {
+    function tokensSinceLastUpdate(address holder) internal view returns (uint256) {
         return tokenEtherRate * 
             tokenFeePromille * 
             (totalTokenPoints() - lastClaimedPoints[holder]) * valueToken.balanceOf(holder) / 
@@ -125,16 +125,16 @@ contract BonusTokenFund is ValueTokenAgent, ReturnTokenAgent, TokenHolder, SafeM
     }    
 
     /**@dev returns total dividend token points up to date */
-    function totalTokenPoints() internal constant returns (uint256) {
-        return safeAdd(tokenPoints, MULTIPLIER * safeSub(this.balance, lastBalance) / valueToken.getValuableTokenAmount());    
+    function totalTokenPoints() internal view returns (uint256) {
+        return safeAdd(tokenPoints, MULTIPLIER * safeSub(address(this).balance, lastBalance) / valueToken.getValuableTokenAmount());    
     }
 
     /**@dev updates ValueToken holder state */
     function updateHolder(address holder) internal {  
         // Update unprocessed deposits
-        if (lastBalance != this.balance) {
+        if (lastBalance != address(this).balance) {
             tokenPoints = totalTokenPoints();
-            lastBalance = this.balance;
+            lastBalance = address(this).balance;
         }   
 
         //don't update balance for reserved tokens

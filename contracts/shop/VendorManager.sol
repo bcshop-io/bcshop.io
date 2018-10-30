@@ -1,4 +1,4 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
 import "../common/Owned.sol";
 import "../common/Versioned.sol";
@@ -24,7 +24,7 @@ contract VendorManager is IVendorManager, Owned, Versioned {
         _;
     }
 
-    function VendorManager(address serviceProvider, uint16 feePromille) public {
+    constructor(address serviceProvider, uint16 feePromille) public {
         require(feePromille <= 1000);
         
         provider = serviceProvider;        
@@ -35,7 +35,7 @@ contract VendorManager is IVendorManager, Owned, Versioned {
     }    
 
     /**@dev Returns a number of vendor contracts created by specific owner */
-    function getVendorCount(address vendorOwner) public constant returns (uint256) {
+    function getVendorCount(address vendorOwner) public view returns (uint256) {
         return vendorLists[vendorOwner].length;
     }
 
@@ -43,7 +43,7 @@ contract VendorManager is IVendorManager, Owned, Versioned {
     function addVendor(address vendorOwner, address vendor) public factoryOnly {
         vendorLists[vendorOwner].push(vendor);
         validVendor[vendor] = true;    
-        VendorAdded(vendorOwner, vendor);
+        emit VendorAdded(vendorOwner, vendor);
     }
 
     /**@dev sets new vendor/product factory */
@@ -66,7 +66,7 @@ contract VendorManager is IVendorManager, Owned, Versioned {
     }
 
     /**@dev Changes valid vendor state */
-    function setValidVendor(address vendor, bool state) ownerOnly {
+    function setValidVendor(address vendor, bool state) public ownerOnly {
         validVendor[vendor] = state;
     }
 }

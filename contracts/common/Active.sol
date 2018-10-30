@@ -1,4 +1,4 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
 import "./Owned.sol";
 
@@ -8,7 +8,7 @@ contract Active is Owned {
     
     bool public activeState;    
     
-    function Active() public {
+    constructor() public {
         activeState = true;
     }
 

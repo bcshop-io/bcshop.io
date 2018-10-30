@@ -1,25 +1,13 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.24;
 
 import "../common/Active.sol";
 import "../common/Manageable.sol";
-import "./ProductStorage.sol";
+import "./IProductStorage.sol";
+import "./AffiliateStorage.sol";
+import "./IEscrowStorage.sol";
 
 contract ProductMaker is Active {
-
-    //
-    // Events
-    event ProductCreated
-    (
-        address indexed owner, 
-        uint256 price, 
-        uint256 maxUnits,
-        uint256 startTime, 
-        uint256 endTime, 
-        bool useEscrow,
-        string name,
-        string data
-    );
-
+    
     event ProductEdited
     (
         uint256 indexed productId, 
@@ -36,61 +24,79 @@ contract ProductMaker is Active {
 
     //
     // Storage data
-    IProductStorage public productStorage;    
+    IProductStorage public productStorage; 
+    IAffiliateStorage public affiliateStorage;   
+    IEscrowStorage public escrowStorage;
 
 
     //
     // Methods
 
-    function ProductMaker(IProductStorage _productStorage) public {
+    constructor(
+        IProductStorage _productStorage, 
+        IAffiliateStorage _affiliateStorage,
+        IEscrowStorage _escrowStorage
+    ) 
+        public 
+    {
         productStorage = _productStorage;
-    }
+        affiliateStorage = _affiliateStorage;
+        escrowStorage = _escrowStorage;
+    }  
 
-    /**@dev Creates product. Can be called by end user */
-    function createSimpleProduct(
+    /**@dev Creates product. Can be called by end user.
+    Affiliate parameter can set affiliate-vendor relation 
+    Is should be set to cookies-stored affilate address only if sender doesn't have any products (offchain check)
+    If no affiliate for this vendor, parameter should be set to 0x0
+    */
+    function createSimpleProduct(        
         uint256 price, 
         uint256 maxUnits,
         bool isActive,
         uint256 startTime, 
         uint256 endTime,
-        bool useEscrow,
+        bool useEscrow,   
+        address escrow,
+        uint256 escrowHoldTimeSeconds,                     
         bool useFiatPrice,
+        address affiliate,
         string name,
         string data
-    ) 
+    )   
         public
         activeOnly
     {
-        if(startTime > 0 && endTime > 0) {
-            require(endTime > startTime);
+        if(useEscrow) {
+            //product id will be current length
+            escrowStorage.setProductEscrow(
+                productStorage.getTotalProducts(), 
+                escrow,
+                escrowStorage.getEscrowCurrentFee(escrow),
+                escrowHoldTimeSeconds
+            );
         }
 
-        productStorage.createProduct(msg.sender, price, maxUnits, isActive, startTime, endTime, useEscrow, useFiatPrice, name, data);
-        //ProductCreated(msg.sender, price, maxUnits, startTime, endTime, 0, name, data);
-    }
+        //if there is no affiliate for this vendor, set it
+        // if(affiliateStorage.affiliates(msg.sender) == 0x0) {
+        //     //set affiliate to the vendor itself if parameter is not set
+        //     affiliateStorage.setAffiliate(
+        //         msg.sender, 
+        //         affiliate == 0x0 ? msg.sender : affiliate
+        //     );
+        // }  
+        if(!affiliateStorage.affiliateSet(msg.sender)) {
+            affiliateStorage.setAffiliate(msg.sender, affiliate);
+        }
 
-    /**@dev Creates product and enters the information about vendor wallet. Can be called by end user */
-    function createSimpleProductAndVendor(
-        address wallet,
-        uint256 price, 
-        uint256 maxUnits,
-        bool isActive,
-        uint256 startTime, 
-        uint256 endTime,
-        bool useEscrow,
-        bool useFiatPrice,
-        string name,
-        string data
-    ) 
-        public
-        activeOnly
-    {
-        productStorage.setVendorInfo(msg.sender, wallet, productStorage.getVendorFee(msg.sender));   
-        createSimpleProduct(price, maxUnits, isActive, startTime, endTime, useEscrow, useFiatPrice, name, data);
-        //productStorage.createProduct(msg.sender, price, maxUnits, isActive, startTime, endTime, useEscrow, useFiatPrice, name, data);
-        //ProductCreated(msg.sender, price, maxUnits, startTime, endTime, 0, name, data);
-    }
+        if(startTime > 0 && endTime > 0) {
+            require(endTime > startTime, "Start/end time mismatch");
+        }
 
+        productStorage.createProduct(
+            msg.sender, price, maxUnits, isActive, startTime, endTime, useEscrow, useFiatPrice, name, data
+        );
+    }
+   
     /**@dev Edits product in the storage */   
     function editSimpleProduct(
         uint256 productId,        
@@ -99,7 +105,6 @@ contract ProductMaker is Active {
         bool isActive, 
         uint256 startTime, 
         uint256 endTime,
-        bool useEscrow,
         bool useFiatPrice,
         string name,
         string data
@@ -107,18 +112,15 @@ contract ProductMaker is Active {
         public
         activeOnly
     {
-        require(msg.sender == productStorage.getProductOwner(productId));                
+        require(msg.sender == productStorage.getProductOwner(productId), "Invalid caller");
         if(startTime > 0 && endTime > 0) {
-            require(endTime > startTime);
+            require(endTime > startTime, "Start/end time mismatch");
         }
-
-        //uint256[5] memory inputs = [productId, price, maxUnits, startTime, endTime];
-        //productStorage.editProduct(inputs[0], inputs[1], inputs[2], isActive, inputs[3], inputs[4], useEscrow, useFiatPrice, name, data);        
         
+        //can't change escrowUsage now
+        bool useEscrow = productStorage.isEscrowUsed(productId);
         productStorage.editProduct(productId, price, maxUnits, isActive, startTime, endTime, useEscrow, useFiatPrice, name, data);        
-        ProductEdited(productId, price, useFiatPrice, maxUnits, isActive, startTime, endTime, useEscrow, name, data);
-        // productStorage.editProductData(productId, price, useFiatPrice, maxUnits, isActive, startTime, endTime, useEscrow);        
-        // productStorage.editProductText(productId, name, data);        
+        emit ProductEdited(productId, price, useFiatPrice, maxUnits, isActive, startTime, endTime, useEscrow, name, data);
     }
 
     /**@dev Changes vendor wallet for profit */

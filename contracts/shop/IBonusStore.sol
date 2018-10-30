@@ -1,5 +1,5 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
 contract IBonusStore {
-    function tokenEtherRate() public constant returns(uint256) {}
+    function tokenEtherRate() public view returns(uint256) {}
 }

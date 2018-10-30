@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.24;
 
 import "./Product.sol";
 import "../token/MintableToken.sol";
@@ -8,7 +8,7 @@ contract TokenProduct is Product {
     
     MintableToken token;
 
-    function TokenProduct(        
+    constructor(        
         string productName,
         uint256 unitPriceInWei,
         uint256 maxProductUnits,

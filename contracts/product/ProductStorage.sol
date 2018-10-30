@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.24;
 
 import "../common/SafeMathLib.sol";
 import "../common/Manageable.sol";
@@ -140,18 +140,17 @@ contract ProductStorage is Manageable, IProductStorage {
     //
     //Methods
 
-    function ProductStorage() public {        
-    }
+    constructor() public {}
 
     /**@dev Returns total amount of products */
-    function getTotalProducts() public constant returns(uint256) {
+    function getTotalProducts() public view returns(uint256) {
         return products.length;
     }
 
     /**@dev Returns text information about product */
     function getTextData(uint256 productId) 
         public
-        constant
+        view
         returns(            
             string name, 
             string data
@@ -167,7 +166,7 @@ contract ProductStorage is Manageable, IProductStorage {
     /**@dev Returns information about product */
     function getProductData(uint256 productId) 
         public
-        constant
+        view
         returns(            
             uint256 price, 
             uint256 maxUnits, 
@@ -185,7 +184,7 @@ contract ProductStorage is Manageable, IProductStorage {
     /**@dev Returns information about product's active state and time limits */
     function getProductActivityData(uint256 productId) 
         public
-        constant
+        view
         returns(            
             bool active, 
             uint256 startTime, 
@@ -203,7 +202,7 @@ contract ProductStorage is Manageable, IProductStorage {
     /**@dev Returns product's creator */
     function getProductOwner(uint256 productId) 
         public 
-        constant         
+        view         
         returns(address)
     {
         return products[productId].owner;
@@ -212,7 +211,7 @@ contract ProductStorage is Manageable, IProductStorage {
     /**@dev Returns product's price */
     function getProductPrice(uint256 productId) 
         public 
-        constant         
+        view         
         returns(uint256)
     {
         return products[productId].price;
@@ -221,7 +220,7 @@ contract ProductStorage is Manageable, IProductStorage {
     /**@dev Returns product's escrow usage */
     function isEscrowUsed(uint256 productId) 
         public 
-        constant         
+        view         
         returns(bool)
     {
         return products[productId].useEscrow;
@@ -230,7 +229,7 @@ contract ProductStorage is Manageable, IProductStorage {
     /**@dev Returns true if product price is set in fiat currency */
     function isFiatPriceUsed(uint256 productId) 
         public 
-        constant         
+        view         
         returns(bool)
     {
         return products[productId].useFiatPrice;
@@ -239,7 +238,7 @@ contract ProductStorage is Manageable, IProductStorage {
     /**@dev Returns true if product can be bought now */
     function isProductActive(uint256 productId) 
         public 
-        constant         
+        view         
         returns(bool)
     {
         return products[productId].isActive && 
@@ -250,7 +249,7 @@ contract ProductStorage is Manageable, IProductStorage {
     /**@dev Returns total amount of purchase transactions for the given product */
     function getTotalPurchases(uint256 productId) 
         public 
-        constant
+        view
         returns (uint256) 
     {
         return products[productId].purchases.length;
@@ -259,7 +258,7 @@ contract ProductStorage is Manageable, IProductStorage {
     /**@dev Returns information about purchase with given index for the given product */
     function getPurchase(uint256 productId, uint256 purchaseId) 
         public
-        constant         
+        view         
         returns(PurchaseState state) 
     {
         Purchase storage p = products[productId].purchases[purchaseId];
@@ -269,7 +268,7 @@ contract ProductStorage is Manageable, IProductStorage {
     /**@dev Returns escrow-related data for specified purchase */
     function getEscrowData(uint256 productId, uint256 purchaseId)
         public
-        constant
+        view
         returns (address, uint256, uint256, uint256)
     {
         EscrowData storage data = escrowData[productId][purchaseId];
@@ -277,12 +276,12 @@ contract ProductStorage is Manageable, IProductStorage {
     }
 
     /**@dev Returns wallet for specific vendor */
-    function getVendorWallet(address vendor) public constant returns(address) {
+    function getVendorWallet(address vendor) public view returns(address) {
         return vendors[vendor].wallet == 0 ? vendor : vendors[vendor].wallet;
     }
 
     /**@dev Returns fee permille for specific vendor */
-    function getVendorFee(address vendor) public constant returns(uint16) {
+    function getVendorFee(address vendor) public view returns(uint16) {
         return vendors[vendor].feePermille;
     }
 
@@ -294,7 +293,7 @@ contract ProductStorage is Manageable, IProductStorage {
 
         vendors[vendor].wallet = wallet;
         vendors[vendor].feePermille = feePermille;
-        VendorInfoSet(vendor, wallet, feePermille);
+        emit VendorInfoSet(vendor, wallet, feePermille);
     }
 
     /**@dev Adds new product to the storage */
@@ -325,7 +324,7 @@ contract ProductStorage is Manageable, IProductStorage {
         product.useFiatPrice = useFiatPrice;
         product.name = name;
         product.data = data;
-        ProductAdded(products.length - 1, owner, price, maxUnits, isActive, startTime, endTime, useEscrow, useFiatPrice, name, data);
+        emit ProductAdded(products.length - 1, owner, price, maxUnits, isActive, startTime, endTime, useEscrow, useFiatPrice, name, data);
     }
 
 
@@ -356,7 +355,7 @@ contract ProductStorage is Manageable, IProductStorage {
         product.useFiatPrice = useFiatPrice;
         product.name = name;
         product.data = data;
-        ProductEdited(productId, price,useFiatPrice, maxUnits, isActive, startTime, endTime, useEscrow, name, data);
+        emit ProductEdited(productId, price,useFiatPrice, maxUnits, isActive, startTime, endTime, useEscrow, name, data);
     }
 
 
@@ -400,7 +399,7 @@ contract ProductStorage is Manageable, IProductStorage {
         validProductId(productId)
         returns (uint256)
     {
-        PurchaseAdded(product.purchases.length, productId, buyer, price, paidUnits, clientId);        
+        emit PurchaseAdded(product.purchases.length, productId, buyer, price, paidUnits, clientId);
         
         ProductData storage product = products[productId];
         product.soldUnits = product.soldUnits.safeAdd(paidUnits);
@@ -437,6 +436,6 @@ contract ProductStorage is Manageable, IProductStorage {
         data.profit = profit;
         data.timestamp = timestamp;
 
-        EscrowDataSet(productId, purchaseId, customer, fee, profit, timestamp);
+        emit EscrowDataSet(productId, purchaseId, customer, fee, profit, timestamp);
     }
 }

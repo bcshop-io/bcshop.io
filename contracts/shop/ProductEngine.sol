@@ -1,8 +1,8 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
-import './VendorBase.sol';
-import './IProductEngine.sol';
-import '../common/SafeMathLib.sol';
+import "./VendorBase.sol";
+import "./IProductEngine.sol";
+import "../common/SafeMathLib.sol";
 
 /*
 ProductEngine that performs actual work */
@@ -19,7 +19,7 @@ library ProductEngine {
      what part of ether should be paid and what part should be returned to buyer  */
     function calculatePaymentDetails(IProductEngine.ProductData storage self, uint256 weiAmount, bool acceptLessUnits) 
         public
-        constant
+        view
         returns(uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
     {        
         //unitsToBuy = weiAmount.safeDiv(self.price);
@@ -52,7 +52,7 @@ library ProductEngine {
         require(self.isActive && currentPrice == self.price); 
 
         //how much units do we buy
-        var (unitsToBuy, etherToPay, etherToReturn) = calculatePaymentDetails(self, msg.value, acceptLessUnits);
+        (uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) = calculatePaymentDetails(self, msg.value, acceptLessUnits);
 
         //store overpay to withdraw later
         if (etherToReturn > 0) {
@@ -92,7 +92,7 @@ library ProductEngine {
         vendorInfo.vendorManager().provider().transfer(etherToProvider);        
         vendorInfo.vendor().transfer(etherToVendor);
 
-        ProductBoughtEx(self.purchases.length - 1, msg.sender, clientId, self.price, unitsToBuy);
+        emit ProductBoughtEx(self.purchases.length - 1, msg.sender, clientId, self.price, unitsToBuy);
         //ProductBought(msg.sender, uint32(unitsToBuy), clientId);
     }
 

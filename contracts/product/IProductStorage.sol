@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.24;
 
 //Abstraction of ProductStorage
 contract IProductStorage {
@@ -11,60 +11,61 @@ contract IProductStorage {
         2-complain. there was a complain
         3-canceled. customer won the dispute and got eth back
         4-pending. vendor can withdraw his funds from escrow
+        5-revoked. vendor revoked escrow-protected purchase in Paid state. 
     */
-    enum PurchaseState {Finished, Paid, Complain, Canceled, Pending}
+    enum PurchaseState {Finished, Paid, Complain, Canceled, Pending, Revoked}
 
     //
     // Methods
 
-    function banned(uint256 productId) public constant returns(bool) {}
+    function banned(uint256 productId) public view returns(bool) {}
 
-    function getTotalProducts() public constant returns(uint256);    
+    function getTotalProducts() public view returns(uint256);    
 
-    function getTextData(uint256 productId) public constant returns(string name, string data);    
+    function getTextData(uint256 productId) public view returns(string name, string data);    
 
     /**@dev Returns information about purchase with given index for the given product */
-    function getProductData(uint256 productId) public constant returns(
+    function getProductData(uint256 productId) public view returns(
             uint256 price, 
             uint256 maxUnits, 
             uint256 soldUnits
         );    
 
-    function getProductActivityData(uint256 productId) public constant returns(
+    function getProductActivityData(uint256 productId) public view returns(
             bool active,
             uint256 startTime,
             uint256 endTime
         );
 
     /**@dev Returns product's creator */
-    function getProductOwner(uint256 productId) public constant returns(address);    
+    function getProductOwner(uint256 productId) public view returns(address);    
 
     /**@dev Returns product's price in wei */
-    function getProductPrice(uint256 productId) public constant returns(uint256);    
+    function getProductPrice(uint256 productId) public view returns(uint256);    
 
-    function isEscrowUsed(uint256 productId) public constant returns(bool);
+    function isEscrowUsed(uint256 productId) public view returns(bool);
 
-    function isFiatPriceUsed(uint256 productId) public constant returns(bool);
+    function isFiatPriceUsed(uint256 productId) public view returns(bool);
 
-    function isProductActive(uint256 productId) public constant returns(bool);
+    function isProductActive(uint256 productId) public view returns(bool);
 
     /**@dev Returns total amount of purchase transactions for the given product */
-    function getTotalPurchases(uint256 productId) public constant returns (uint256);    
+    function getTotalPurchases(uint256 productId) public view returns (uint256);    
 
     /**@dev Returns information about purchase with given index for the given product */
-    function getPurchase(uint256 productId, uint256 purchaseId) public constant returns(PurchaseState);    
+    function getPurchase(uint256 productId, uint256 purchaseId) public view returns(PurchaseState);    
 
     /**@dev Returns escrow-related data for specified purchase */
     function getEscrowData(uint256 productId, uint256 purchaseId)
         public
-        constant
+        view
         returns (address, uint256, uint256, uint256);    
 
     /**@dev Returns wallet for specific vendor */
-    function getVendorWallet(address vendor) public constant returns(address);    
+    function getVendorWallet(address vendor) public view returns(address);    
 
     /**@dev Returns fee permille for specific vendor */
-    function getVendorFee(address vendor) public constant returns(uint16);    
+    function getVendorFee(address vendor) public view returns(uint16);    
 
     function setVendorInfo(address vendor, address wallet, uint16 feePermille) public;        
 

@@ -1,4 +1,4 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.24;
 
 /*Interface to ProductEngine library */
 library IProductEngine {
@@ -48,7 +48,7 @@ library IProductEngine {
      what part of ether should be paid and what part should be returned to buyer  */
     function calculatePaymentDetails(IProductEngine.ProductData storage self, uint256 weiAmount, bool acceptLessUnits) 
         public
-        constant        
+        view        
         returns(uint256 unitsToBuy, uint256 etherToPay, uint256 etherToReturn) 
     {
         self; unitsToBuy; etherToPay; etherToReturn; weiAmount; acceptLessUnits;
