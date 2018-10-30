@@ -185,6 +185,13 @@ contract("EtherFund", function(accounts) {
         throw "Function should fail";
     })
     
+    it("try to copy state for not all receivers, should fail", async function() {
+        newFund = await Fund.new(user1, 1000, user3, 0);
+        await utils.expectContractException(async function() {
+            await newFund.copyStateFor(fund.address, [user1]);
+        });
+    });
+    
     it("transfer ether to fund, change shares to 30/70. it shouldn't affect current balances", async function() {
         await web3.eth.sendTransaction({from:owner, to:fund.address, value:tranche3});
         lastBalance1 = lastBalance1 + tranche3 * share1 / 1000;
