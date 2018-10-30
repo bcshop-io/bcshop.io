@@ -114,10 +114,37 @@ module.exports = async function(deployer, network, accounts) {
     info.payment.abi = payment.abi;
     console.log("3. Payment " + payment.address);
 
+    let owner = accounts[0];
+    let provider = accounts[1];
+    let escrow = accounts[2];
+    let user1 = accounts[3];
+    let user2 = accounts[4];
+    let vendor1 = accounts[5];
+    let vendor2 = accounts[6];
+
     await payment.setConvertParams(quickConverter, convertPath);
+    await payment.setManager(escrow, true);
    
     console.log(await payment.convertPath.call(0));
-    console.log(await payment.converter.call());
+    console.log(await payment.converter.call());    
+
+    let oldBalance = await utils.getBalance(oldPayment.address);
+    await oldPayment.withdrawEtherTo(oldBalance, owner);
+    await utils.sendEther(owner, payment.address, oldBalance);
+
+    await payment.resolve(2, 1, false, {from:escrow});
+    await payment.withdrawPending(2,1,{from:vendor1});
     
+    await payment.buyWithEth(1, 2, "User@mail.ru", false, Price1/2, {from:user2, value:Price1});
+    await payment.buyWithEth(1, 1, "ID1", true, Price1/2, {from:user1, value:Price1/2});        
+    await payment.buyWithEth(2, 1, "ID2", true, Price1/2, {from:user1, value:Price1/2});        
+    await payment.buyWithEth(2, 1, "mail2", true, Price1/2, {from:user1, value:Price1/2});
+    await payment.complain(1, 2, {from:user2});
+    await payment.complain(2, 4, {from:user1});
+
+    await payment.resolve(1, 2, true, {from:escrow});
+
+    await discountPolicy.addCashbacks([user1, user2], [OneEther/2000, OneEther/1000]);    
+
     fs.writeFileSync("pfd.json", JSON.stringify(info, null , '\t'));
 }

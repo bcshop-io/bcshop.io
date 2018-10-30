@@ -191,9 +191,31 @@ contract("MassTransfer. Measure gas", function(accounts) {
         let tokens = [];
         let receivers = [];
         let oldTokens = [];
+
+        receivers.push('0xDF35293cc31351dB123147a64cCFB0d8133BB45B');
+        receivers.push('0x6fe557181dA1A60ecD11D84b095978cfaa3A3Abe');
+        receivers.push('0x9408D7e5BF30473cBb92f17f208266a475F9E954');
+        receivers.push('0x4510B985119A74295ac85F00Ad0E065c34FBf202');
+        receivers.push('0x90541E5F0521135B4F8ca65f7EB8429B6345ac34');
+        receivers.push('0xE50f9685b3a9C618e5845eD8963640ca461D2e2E');
+        receivers.push('0xbCA8CEBaCDA8F3084AeEF67E8935D1a1BDD7a346');
+        receivers.push('0x51f6B2d32d1531a8EF2E000Bcd39a43f3eCF0b66');
+        receivers.push('0x94A5b7E33c0a2676A6B525bc609aD59d0b05C81D');
+        receivers.push('0x091aBE6C7933F27351d8d054eE1318eBC373B838');
+        receivers.push('0x05f54f323EAf306A6C24ECf5306996614066C507');
+        receivers.push('0x2614C52138ee77Dd112D1E399507631dB7E952af');
+        receivers.push('0x847c8b737b8853831F3D7081B68Ffba399535768');
+        receivers.push('0xa72a6159BAb212239362097660D8FE301A780650');
+        receivers.push('0x6f0cD3e4351a5A63DF69F659bFb06fb386114602');
+        receivers.push('0x174a9986974899c522D6E30b0f125bc90a031717');
+        receivers.push('0x6889C8333dab66FD2412D722AD5d4B8A7906c803');
+        receivers.push('0xdCfDa1504Ab669c527aF7E2800e4704598e8B2A6');
+        receivers.push('0x8b9D3A3F85ce3EdeD15666148B27b6D84f8f920D');
+        receivers.push('0x3e46A74f47ee7e8B3E9587a830Eb7C4CD11414C4');
+
         for(let i = 0; i < count; ++i) {
             tokens.push(await _RT(i%10));
-            receivers.push(accounts[i%10]);
+            //receivers.push(accounts[i%10]);
             oldTokens.push(await _TB(accounts[i%10]));
         }
         

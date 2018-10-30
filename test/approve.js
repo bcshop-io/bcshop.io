@@ -92,6 +92,7 @@ contract("VendorApprove. requestApprove", function(accounts) {
         let event = tx.logs[0];
         assert.equal(event.event, "ApprovalRequested", "Invalid event name");
         assert.equal(event.args.sender, vendor1, "Invalid event sender");
+        assert.equal(event.args.state, true, "Invalid event state");
     });
 
     //no approve
@@ -119,6 +120,21 @@ contract("VendorApprove. requestApprove", function(accounts) {
             await approve.requestApprove({from:vendor1});
         });
     });
+
+    it("cancel request as vendor", async function() {
+        await token.approve(approve.address, ApprovalPrice, {from:vendor1});
+        let tx = await approve.requestApprove({from:vendor1});
+        tx = await approve.cancelRequest({from:vendor1});
+
+        assert.equal(await approve.requests.call(vendor1), 0, "Invalid requests data");
+        assert.equal(await utils.TB(token, vendor1), ApprovalPrice, "Vendor1 should get his tokens back");
+        assert.equal(await utils.TB(token, approve.address), 0, "Contract should have no tokens");
+
+        let event = tx.logs[0];
+        assert.equal(event.event, "ApprovalRequested", "Invalid event name");
+        assert.equal(event.args.sender, vendor1, "Invalid event sender");
+        assert.equal(event.args.state, false, "Invalid event state");        
+    });
 });
 
 
@@ -141,7 +157,8 @@ contract("VendorApprove. Resolve request", function(accounts) {
         assert.equal(event.event, "ApprovalGranted", "Invalid event name");
         assert.equal(event.args.sender, vendor1, "Invalid request sender");
         assert.equal(event.args.state, true, "Invalid request result");
-
+        
+        assert.equal(await approve.approved.call(vendor1), true, "vendor should be approved");
         assert.equal(await approve.requests.call(vendor1), 0, "Invalid request data");
     });
 
@@ -154,6 +171,7 @@ contract("VendorApprove. Resolve request", function(accounts) {
         assert.equal(event.args.state, false, "Invalid request result");
 
         assert.equal(await approve.requests.call(vendor1), 0, "Invalid request data");
+        assert.equal(await approve.approved.call(vendor1), false, "vendor shouldn't be approved");
 
         assert.equal(await utils.TB(token, vendor1), ApprovalPrice, "User should get back his tokens");
         assert.equal(await utils.TB(token, approve.address), 0, "Contract should have 0 tokens");
@@ -184,6 +202,9 @@ contract("VendorApprove. Resolve request", function(accounts) {
 
         assert.equal(await utils.TB(token, vendor2), ApprovalPrice, "Vendor2 should get back his tokens");
         assert.equal(await utils.TB(token, approve.address), ApprovalPrice, "Contract should have tokens from vendor1");
+
+        assert.equal(await approve.approved.call(vendor1), true, "vendor1 should be approved");
+        assert.equal(await approve.approved.call(vendor2), false, "vendor2 should be approved");
     });
 
     //grant multiple approvals if arrays don't match, fail
@@ -194,7 +215,7 @@ contract("VendorApprove. Resolve request", function(accounts) {
         });
     });
 
-    //grant approval without request, fail
+    // grant approval without request, fail
     it("grant approval without request, fail", async function() {
         await utils.expectContractException(async function() {
             await approve.grantApprovals([vendor2], [false], {from:approver}); 
@@ -204,12 +225,12 @@ contract("VendorApprove. Resolve request", function(accounts) {
     //vendor1 requests, then price changes, vendor1 gots cancel and should receive his initial tokens back
     it("change price after request", async function() {
         await approve.setParams(token.address, ApprovalPrice / 2);
-        await approve.grantApprovals([vendor1], [false], {from:approver});
+        assert.equal(await approve.tokensForApproval.call(), (ApprovalPrice/2).toString(), "Invalid approval price");
 
+        await approve.grantApprovals([vendor1], [false], {from:approver});
         assert.equal(await approve.requests.call(vendor1), 0, "Invalid request data");
         assert.equal(await utils.TB(token, vendor1), ApprovalPrice, "User should get back his tokens");
-        assert.equal(await utils.TB(token, approve.address), 0, "Contract should have 0 tokens");
-        assert.equal(await approve.tokensForApproval.call(), (ApprovalPrice/2).toString(), "Invalid approval price");
+        assert.equal(await utils.TB(token, approve.address), 0, "Contract should have 0 tokens");        
     });
 
     //withdraw tokens
@@ -258,7 +279,15 @@ contract("VendorApprove. measure gas", function(accounts) {
         console.log("single deny approval gas: " + tx.receipt.gasUsed);
     });
 
-    it("multiple resolve: grant", async function() {
+    it("cancel request", async function() {
+        let tx;
+        await approve.requestApprove({from:vendor1});
+        tx = await approve.cancelRequest({from:vendor1});
+
+        console.log("cancelRequest gas usage: " + tx.receipt.gasUsed);
+    });
+
+    it("multiple resolve: grant x3", async function() {
         await approve.requestApprove({from:vendor1});
         await approve.requestApprove({from:vendor2});
         await approve.requestApprove({from:vendor3});
@@ -267,7 +296,7 @@ contract("VendorApprove. measure gas", function(accounts) {
         console.log("multiple resolve: grant. gas " + tx.receipt.gasUsed);
     });
 
-    it("multiple resolve: deny", async function() {
+    it("multiple resolve: deny x3", async function() {
         await approve.requestApprove({from:vendor1});
         await approve.requestApprove({from:vendor2});
         await approve.requestApprove({from:vendor3});

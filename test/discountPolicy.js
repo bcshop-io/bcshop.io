@@ -352,11 +352,11 @@ contract(`DiscountPolicy. 1/${DiscountsInPool} pool, [1,2,3] tokens ~ [100%, 200
 
     checkDiscount(user3, E18, E18*0.002, "Enough Tokens, Lv.2");    
     checkDiscount(user3, 2*E18, E18*0.002, "Doesn't depend on purchase, Lv.2");
-    checkDiscount(user3, E18*0.03, E18*0.0015, "cap reached, Lv.2");
+    checkDiscount(user3, E18*0.015, E18*0.0015, "cap reached, Lv.2");
 
     checkDiscount(user4, E18, E18*0.003, "Enough Tokens, Lv.3");
     checkDiscount(user4, 2*E18, E18*0.003, "Doesn't depend on purchase, Lv.3");
-    checkDiscount(user4, E18*0.05, E18*0.0025, "cap reached, Lv.3");    
+    checkDiscount(user4, E18*0.017, E18*0.017*0.15, "cap reached, Lv.3");    
     
     checkDiscount(user2, E18*0.1, 0, "Not enough tokens");
 });
@@ -441,7 +441,7 @@ contract("DiscountPolicy. Withdraw", function(accounts) {
         let cashbackA = await discountPolicy.totalCashback.call(attacker.address);        
 
         let contractBalance = (await utils.getBalance(discountPolicy.address)).toNumber();
-        assert.isAbove(cashbackA, 0, "Invalid cashback for attacker");        
+        assert.isAbove(cashbackA.toNumber(), 0, "Invalid cashback for attacker");        
 
         await utils.expectContractException(async function() {
             await attacker.withdraw();
@@ -502,7 +502,7 @@ contract("DiscountPolicy. Withdraw", function(accounts) {
         await discountPolicy.addCashbacks([user1], [2*MinPoolBalance]);
         assert.isAbove(
             (await discountPolicy.totalCashback.call(user1)).toNumber(), 
-            await utils.getBalance(discountPolicy.address),
+            (await utils.getBalance(discountPolicy.address)).toNumber(),
             "Invalid balance"
         );
 

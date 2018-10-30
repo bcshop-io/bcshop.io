@@ -6,9 +6,25 @@ let utils = new (require("./utils.js"))(web3);
 let Storage = artifacts.require("ProductStorage");
 let Factory = artifacts.require("ProductMaker");
 
-contract("ProductStorage. ", function(accounts) {
+let factory;
+let users;
+let escrowFee = 50;
+let escrowTime = 86400;
+let price = 10000;    
+let startTime = 1517356800;
+let endTime   = 1517356900;    
+let maxUnits = 10; 
+let active = true;
+let useEscrow = true;
+let useFiatPrice = false;
+let name = "Product Name";
+let data = "Address 1|Address 2";
+let storage;
+let escrowStorage;
+let affStorage;
 
-    let storage;
+contract("ProductStorage. ", function(accounts) {
+    
     let owner = accounts[0];
     let wallet = accounts[1];
     let user = accounts[2];
@@ -310,87 +326,70 @@ contract("ProductStorage. ", function(accounts) {
     });
 });
 
+async function prepareMaker(accounts) {
+    users = utils.makeRoles(accounts);
+    storage = await Storage.new();
+    escrowStorage = await utils.createEscrowStorage(users.escrow, escrowFee);
+    affStorage = await utils.createAffiliateStorage();
 
+    factory = await utils.createProductFactory(storage, affStorage, escrowStorage);
+}
 
-contract("ProductMaker. ", function(accounts) {
-
-    let storage;
-    let owner = accounts[0];
-    let wallet = accounts[1];
-    let user = accounts[2];
-    let price = 10000;    
-    let maxUnits = 10;
-    let startTime = 1517356800;
-    let endTime = 1517356900;    
-    let active = false;
-    let useEscrow = false;
-    let useFiatPrice = false;
-    let name = "Product1";
-    let data = "Address 1|Address 2|Phone";
+contract("ProductMaker. ", function(accounts) {   
     
     before(async function() {
-        storage = await Storage.new();
-        factory = await Factory.new(storage.address);
-        await storage.setManager(factory.address, true);
+        await prepareMaker(accounts);
     });
 
-    it("verifies data after createSimpleProduct", async function() {
-        await factory.createSimpleProduct(price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data, {from:user});
+    it("verifies data after createSimpleProduct", async function() {        
+        await utils.createProduct(factory, users, {
+            price:price,
+            maxUnits:maxUnits,
+            active:true,
+            startTime:startTime,
+            endTime:endTime,
+            useEscrow:useEscrow,
+            escrow:users.escrow,
+            escrowTime:escrowTime,            
+            useFiatPrice:useFiatPrice,
+            affiliate:users.affiliate,
+            name:name,
+            data:data,
+            vendor:users.vendor
+        });
                 
         let result = await storage.getProductData.call(0);
         assert.equal(result[0], price, "Invalid price");
         assert.equal(result[1], maxUnits, "Invalid maxUnits");
         assert.equal(result[2], 0, "Invalid soldUnits");    
         
-        assert.equal(user, await storage.getProductOwner.call(0), "Invalid owner");        
+        assert.equal(users.vendor, await storage.getProductOwner.call(0), "Invalid owner");
         assert.equal(useEscrow, await storage.isEscrowUsed.call(0), "Invalid escrow usage");
         assert.equal(useFiatPrice, await storage.isFiatPriceUsed.call(0), "Invalid fiat price usage");
             
         result = await storage.getProductActivityData.call(0);
-        assert.isFalse(result[0], "Invalid active");
+        assert.isTrue(result[0], "Invalid active");
         assert.equal(result[1], startTime, "Invalid start time");
         assert.equal(result[2], endTime, "Invalid end time");        
 
         result = await storage.getTextData.call(0);
         assert.equal(result[0], name, "Invalid name");
-        assert.equal(result[1], data, "Invalid data");        
-    });
+        assert.equal(result[1], data, "Invalid data");
 
-    it("verifies data after createSimpleProductAndVendor", async function() {        
-        await factory.createSimpleProductAndVendor(wallet, price * 2, maxUnits, active, 10, 20, useEscrow,useFiatPrice, "NAME2", "DATA2", {from:user});
-                
-        let result = await storage.getProductData.call(1);
-        assert.equal(result[0], price*2, "Invalid price");
-        assert.equal(result[1], maxUnits, "Invalid maxUnits");
-        assert.equal(result[2], 0, "Invalid soldUnits");    
-        
-        assert.equal(user, await storage.getProductOwner.call(1), "Invalid owner");        
-        assert.equal(useEscrow, await storage.isEscrowUsed.call(1), "Invalid escrow data");
-        assert.equal(useFiatPrice, await storage.isFiatPriceUsed.call(0), "Invalid fiat price usage");
-            
-        result = await storage.getProductActivityData.call(1);
-        assert.isFalse(result[0], "Invalid active");
-        assert.equal(result[1], 10, "Invalid start time");
-        assert.equal(result[2], 20, "Invalid end time");        
-                            
-        assert.equal(await storage.getVendorWallet.call(user), wallet, "Invalid wallet");
-        assert.equal(await storage.getVendorFee.call(user), 0, "Invalid fee policy");
-            
-        result = await storage.getTextData.call(1);
-        assert.equal(result[0], "NAME2", "Invalid Name");
-        assert.equal(result[1], "DATA2", "Invalid data");
+        assert.equal(users.escrow, await escrowStorage.getProductEscrow.call(0), "Invalid escrow");
+        assert.equal(escrowTime, await escrowStorage.getProductEscrowHoldTime.call(0), "Invalid escrow time");        
+
+        assert.equal(users.affiliate, await affStorage.affiliates.call(users.vendor), "Invalid affiliate");
     });
 
     it("verifies data after editSimpleProduct", async function() {
-        await factory.editSimpleProduct(0, 555, 32, true, 0, 0, false,false, "NEWNAME", "NEWDATA", {from:user});
-        let tx = await factory.editSimpleProduct(0, 555, 32, false, 1, 2,true, true, "NEWNAME", "NEWDATA", {from:user});        
+        await factory.editSimpleProduct(0, 555, 32, false, 1, 2, true, "NEWNAME", "NEWDATA", {from:users.vendor});
                 
         let result = await storage.getProductData.call(0);
         assert.equal(result[0], 555, "Invalid price");
         assert.equal(result[1], 32, "Invalid maxUnits");
         
-        assert.equal(user, await storage.getProductOwner.call(0), "Invalid owner");        
-        assert.equal(true, await storage.isEscrowUsed.call(0), "Invalid escrow data");
+        assert.equal(users.vendor, await storage.getProductOwner.call(0), "Invalid owner");        
         assert.equal(true, await storage.isFiatPriceUsed.call(0), "Invalid fiat price usage");
             
         result = await storage.getProductActivityData.call(0);
@@ -404,162 +403,196 @@ contract("ProductMaker. ", function(accounts) {
     });
 
     it("verifies data after setVendorWallet", async function() {
-        await factory.setVendorWallet(accounts[5], {from:user});
+        await factory.setVendorWallet(accounts[5], {from:users.vendor});
                 
-        assert.equal(await storage.getVendorWallet.call(user), accounts[5], "Invalid wallet");
-        assert.equal(await storage.getVendorFee.call(user), 0, "Invalid fee");
+        assert.equal(await storage.getVendorWallet.call(users.vendor), accounts[5], "Invalid wallet");
+        assert.equal(await storage.getVendorFee.call(users.vendor), 0, "Invalid fee");
     });
 
     it("can't createSimpleProduct if endTime <= startTime", async function() {        
         await factory.setActive(true);
         await utils.expectContractException(async function() {
-            await factory.createSimpleProduct(price, maxUnits, active, 100, 90, useEscrow, useFiatPrice, name, data, {from:user});
+            await utils.createProduct(factory, users, {startTime:100, endTime:90});
         });
     });
     
     it("can't editSimpleProduct if endTime <= startTime", async function() {        
         await factory.setActive(true);
         await utils.expectContractException(async function() {
-            await factory.editSimpleProduct(0, 555, 32, false, 3, 1,true, true, "NEWNAME", "NEWDATA", {from:user});
+            await factory.editSimpleProduct(0, 555, 32, false, 3, 1, true, "NEWNAME", "NEWDATA", {from:users.vendor});
         });
     });
 
     it("can't call createSimpleProduct if contract is inactive", async function() {
         await factory.setActive(false);
         await utils.expectContractException(async function() {
-            await factory.createSimpleProduct(price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data, {from:user});
-        });
-    });
-
-    it("can't call createSimpleProductAndVendor if contract is inactive", async function() {
-        await factory.setActive(false);
-        await utils.expectContractException(async function() {
-            await factory.createSimpleProductAndVendor(wallet, price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data, {from:user});
+            await utils.createProduct(factory, users, );
         });
     });
 
     it("can't call editSimpleProduct if contract is inactive", async function() {
         await factory.setActive(false);
         await utils.expectContractException(async function() {
-            await factory.editSimpleProduct(0, 555, 32, false, 1, 2, true, true, "NEWNAME", "NEWDATA", {from:user});
+            await factory.editSimpleProduct(0, 555, 32, false, 1, 2, true, "NEWNAME", "NEWDATA", {from:users.vendor});
         });
     });
 
     it("can't call setVendorWallet if contract is inactive", async function() {
         await factory.setActive(false);
         await utils.expectContractException(async function() {
-            await factory.setVendorWallet(accounts[5], {from:user});
+            await factory.setVendorWallet(accounts[2], {from:users.vendor});
         });
     });
 
     it("can't call editSimpleProduct as not product's owner", async function() {
-        try {
-            await factory.editSimpleProduct(0, 555, 32, false, 1, 2, true, true, "NEWNAME", "NEWDATA", {from:owner});
-        } catch (e) {
-            return true;
-        }
-        throw "FAIL";
+        await factory.setActive(true);
+        await utils.expectContractException(async function() {
+            await factory.editSimpleProduct(0, 555, 32, false, 1, 2, true, "NEWNAME", "NEWDATA", {from:users.owner});
+        });
     }); 
 });
 
-
-contract("Measure gas usage", function(accounts) {
-    let storage;
-    let factory;
-    let owner = accounts[0];
-    let wallet = accounts[1];
-    let user = accounts[2];
-    let price = 10000;    
-    let maxUnits = 10;
-    let startTime = 1517356800;
-    let endTime = 1517356900;
-    let active = true;
-    let useEscrow = true;
-    let useFiatPrice = true;
-    let name = "Product1";
-    let data = "Address 1|Address 2|Phone";
-
+contract("ProductMaker. create with affiliates", function(accounts) {
     beforeEach(async function() {
-        storage = await Storage.new();
-        factory = await Factory.new(storage.address);
-        await storage.setManager(factory.address, true);
+        await prepareMaker(accounts);
+    });
+        
+    it("create product with affiliate", async function() {        
+        assert.isFalse(await affStorage.affiliateSet.call(users.user1), "Invalid affiliateSet before creation")
+        await utils.createProduct(factory, users, {affiliate:users.user1});
+        assert.equal(users.user1, await affStorage.affiliates.call(users.vendor), "Invalid affiliate");
     });
 
-    it("create storage", async function() {        
+    it("create product with affiliate = 0. should be set to 0x0", async function() {
+        await utils.createProduct(factory, users, {affiliate:"0x0"});
+        assert.equal(await affStorage.affiliates.call(users.vendor), 0, "Invalid affiliate");
+        assert.isTrue(await affStorage.affiliateSet.call(users.vendor), "Invalid affiliateSet")
+    });
+
+    it("can't change affiliate after it was set", async function() {        
+        await utils.createProduct(factory, users, {affiliate:users.affiliate});        
+        await utils.createProduct(factory, users, {affiliate:users.user1});
+
+        assert.equal(await affStorage.affiliates.call(users.vendor), users.affiliate, "Invalid affiliate");
+    });
+});
+
+contract("ProductMaker. create with escrow", function(accounts) {
+    beforeEach(async function() {
+        await prepareMaker(accounts);
+    });
+
+    it("create product with escrow, verify data", async function() {
+        let tx = await utils.createProduct(factory, users, {
+            useEscrow: true,
+            escrow: users.escrow,
+            escrowTime: 5000 
+        });
+                
+        assert.isTrue(await storage.isEscrowUsed.call(0), "Invalid escrow flag");
+        
+        assert.equal(
+            await escrowStorage.getProductEscrow.call(0),
+            users.escrow,
+            "Invalid product escrow"
+        );
+        assert.equal(
+            await escrowStorage.getProductEscrowFee.call(0),
+            escrowFee,
+            "Invalid product escrow fee"
+        );
+        assert.equal(
+            await escrowStorage.getProductEscrowHoldTime.call(0),
+            5000,
+            "Invalid product escrow hold time"
+        );
+    });
+
+    it("can't create product with non-set escrow", async function() {
+        await utils.expectContractException(async function() {
+            await utils.createProduct(factory, users, {
+                useEscrow: true,
+                escrow: users.user2,
+                escrowTime: 120000                
+            });
+        });
+    });
+});
+
+contract("Measure gas usage", function(accounts) {
+
+    users = utils.makeRoles(accounts);
+
+    let storage;
+    let escrowStorage;
+    let affStorage;
+
+    name = "Product1";
+    data = "Address 1|Address 2|Phone";
+
+    beforeEach(async function() {        
+        storage = await Storage.new();
+        escrowStorage = await utils.createEscrowStorage(users.escrow);
+        affStorage = await utils.createAffiliateStorage();
+        factory = await utils.createProductFactory(storage, affStorage, escrowStorage);
+
+        // storage = await Storage.new();
+        // factory = await Factory.new(storage.address);
+        // await storage.setManager(factory.address, true);
+    });
+
+    it("create storage", async function() {
         console.log("Gas used: " + web3.eth.getTransactionReceipt(storage.transactionHash).gasUsed);
+        //2134k
     });
 
     it("create factory ", async function() {        
         console.log("Gas used: " + web3.eth.getTransactionReceipt(factory.transactionHash).gasUsed);
+        //1200k
     });
 
     it("storage.createProduct", async function() {        
-        let tx = await storage.createProduct(owner, price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data); 
+        let tx = await storage.createProduct(users.owner, price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data);         
         console.log("Gas used 1: " + tx.receipt.gasUsed);
 
-        tx = await storage.createProduct(owner, price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data); 
+        tx = await storage.createProduct(users.owner, price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data); 
         console.log("Gas used 2: " + tx.receipt.gasUsed);
-
-        //235781 - with no 'string data'
-        //235781/223028 - with 'string data' in the struct, without any interaction with it                
-        //256376 - assign 15 symbols literal string
         
-        //221k/206k - assign empty string
         //238k/223k - assign "Address 1|Address 2|Phone" through parameter
-        //237k/222k - assign "1|2|3" through parameter
     });
 
     it("factory.createSimpleProduct", async function() {
-        let tx = await factory.createSimpleProduct(price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data);
+        //let tx = await factory.createSimpleProduct(price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data);
+        let tx = await utils.createProduct(factory, users);
         console.log("Gas used 1: " + tx.receipt.gasUsed);
 
-        tx = await factory.createSimpleProduct(price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data);
+        //tx = await factory.createSimpleProduct(price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data);
+        tx = await utils.createProduct(factory, users);
         console.log("Gas used 2: " + tx.receipt.gasUsed);
-        
-        //223k/208k - assign empty string
-        //240k/225k - assign "Address 1|Address 2|Phone" through parameter        
-        //239k/224k - assign "1|2|3" through parameter
+                
+        //320k/280k - assign "Address 1|Address 2|Phone" through parameter                
     });
 
     it("factory.editSimpleProduct", async function() {
-        let tx = await factory.createSimpleProduct(price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data);
-        tx = await factory.editSimpleProduct(0, price/2, maxUnits+1, false, startTime + 10, endTime + 20, false, false, "XXXXX", "CCCC");        
+        let tx = await utils.createProduct(factory, users, {vendor:users.owner});//factory.createSimpleProduct(price, maxUnits, active, startTime, endTime, useFiatPrice, name, data);
+        tx = await factory.editSimpleProduct(0, price/2, maxUnits+1, false, startTime + 10, endTime + 20, false, "XXXXX", "CCCC");        
         console.log("Gas used 1: " + tx.receipt.gasUsed);
 
-        tx = await factory.editSimpleProduct(0, price, maxUnits, true, startTime + 20, endTime + 30, true, true, "AAAAA", "BBBB");        
+        tx = await factory.editSimpleProduct(0, price, maxUnits, true, startTime + 20, endTime + 30, true, "AAAAA", "BBBB");        
         console.log("Gas used 2: " + tx.receipt.gasUsed);
 
-        //66k/127k
-    })
-
-    it("factory.createSimpleProductAndVendor x40", async function() {
-        let tx = await factory.createSimpleProductAndVendor(wallet, price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data);
-        console.log("Gas used 1: " + tx.receipt.gasUsed);
-
-        for(let i = 0; i < 40; ++i) {
-            tx = await factory.createSimpleProductAndVendor(wallet, price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data, {from:accounts[i%10]});            
-        }
-        console.log("Gas used last: " + tx.receipt.gasUsed);
-
-        let ownerr = await storage.getProductOwner.call(20);        
-        
-        //250840/235840 - assign empty string
-        //268002/238002 assign "Address 1|Address 2|Phone" through parameter
+        //84/114k
     });
 
     it("storage.createProduct x40", async function() {
-        let tx = await storage.createProduct(owner, price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data); 
+        let tx = await storage.createProduct(users.owner, price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data); 
         console.log("Gas used first: " + tx.receipt.gasUsed);
 
         for(let i = 0; i < 40; ++i) {
-            tx = await storage.createProduct(owner, price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data);             
+            tx = await storage.createProduct(users.owner, price, maxUnits, active, startTime, endTime, useEscrow, useFiatPrice, name, data);             
         }
         console.log("Gas used last: " + tx.receipt.gasUsed);
-
-        //235781 - with no 'string data'
-        //235781/223028 - with 'string data' in the struct, without any interaction with it        
-        //241358/228605 - assign empty string
-        //256376 - assign 15 symbols literal string
-        //236737/221737 - assign "Address 1|Address 2|Phone" through parameter
+        
+        //238k/223k - assign "Address 1|Address 2|Phone" through parameter
     });
 });

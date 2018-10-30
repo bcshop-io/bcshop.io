@@ -83,7 +83,7 @@ async function prepare(accounts) {
     manager = accounts[9];
     bancorConverter = accounts[9];
 
-    token = await utils.createToken();
+    token = await utils.createToken();    
     let result = await utils.createFunds(provider, ProfitPermille);
     pool = result.proxy;
     etherFund = result.fund;

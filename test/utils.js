@@ -120,31 +120,93 @@ async function() {
     return await ProductStorage.new({gas:2700000});
 }
 
-//creates ProductMaker contract. storage is truffle contract, not an address
+//creates ProductMaker contract. storages are truffle contractc, not just addresses
 Utils.prototype.createProductFactory = 
-async function(storage) {
+async function(storage, affStorage, escrowStorage) {
     let Factory = artifacts.require("ProductMaker");
-    let factory = await Factory.new(storage.address);
+    let factory = await Factory.new(storage.address, affStorage.address, escrowStorage.address);
     await storage.setManager(factory.address, true);
+    await affStorage.setManager(factory.address, true);
+    await escrowStorage.setManager(factory.address, true);
     return factory;
 }
 
-//creates feePolicy contract. token and storage are truffle contracts, not just addresses
+//creates product, 
+//factory is ProductMaker truffle contract
+//users is result of utils.makeRoles(accounts) call
+Utils.prototype.createProduct = 
+async function(factory, users, options = {}) {
+    let escrowTime = 0;
+    let price = 10000;    
+    let maxUnits = 10;
+    let startTime = 0;
+    let endTime   = 0;    
+    let active = true;
+    let useEscrow = false;
+    let useFiatPrice = false;
+    let name = "Product1";
+    let data = "Address 1|Address 2|Phone";
+ 
+    return await factory.createSimpleProduct(
+        this.or(options.price, price),
+        this.or(options.maxUnits, maxUnits),
+        this.or(options.isActive, active),
+        this.or(options.startTime, startTime),
+        this.or(options.endTime, endTime),
+        this.or(options.useEscrow, useEscrow),
+        this.or(options.escrow, "0x0"),
+        this.or(options.escrowTime, escrowTime),
+        this.or(options.useFiatPrice, useFiatPrice),
+        this.or(options.affiliate, "0x0"),
+        this.or(options.name, name),        
+        this.or(options.data, data),
+        {from:this.or(options.vendor, users.vendor)}
+    );
+}
+
+//creates affiliateStorage contract
+Utils.prototype.createAffiliateStorage = 
+async function() {
+    let AffiliateStorage = artifacts.require("AffiliateStorage");
+    return await AffiliateStorage.new();
+}
+
+//creates escrowStorage contract
+Utils.prototype.createEscrowStorage = 
+async function(defaultEscrow, defaultEscrowFee=50) {
+    let EscrowStorage = artifacts.require("EscrowStorage");
+    return await EscrowStorage.new([defaultEscrow], [defaultEscrowFee]);    
+}
+
+//creates escrowProvider contract. escrowStorage is truffle contract
+Utils.prototype.createEscrowProvider =
+async function(escrowStorage, defaultEscrow, legacyHoldTimeSeconds, legacyEscrowFee) {
+    let Escrow = artifacts.require("Escrow");
+    let escrow = await Escrow.new(escrowStorage.address, defaultEscrow, legacyHoldTimeSeconds, legacyEscrowFee);
+    await escrowStorage.setManager(escrow.address, true);
+
+    return escrow;
+}
+
+//creates feePolicy contract. 
+//token, storage, affStorage, escrowProvider are truffle contracts, not just addresses
 Utils.prototype.createFeePolicy = 
-async function(storage, defaultFee, escrowFee, fiatPriceFee, feeWallet, token, minTokens, term, maxTotalDiscount, feeDiscount) {
-    let FeePolicy = artifacts.require("FeePolicy");    
+async function(
+    storage, affStorage, escrowProvider, defaultFee, affFee, feeWallet, token, minTokens, term, maxTotalDiscount, feeDiscount
+    ) {
+    let FeePolicy = artifacts.require("FeePolicy");
     return await FeePolicy.new(
-        storage.address, defaultFee, escrowFee, fiatPriceFee, feeWallet, token.address, minTokens, term, maxTotalDiscount, feeDiscount
+        storage.address, affStorage.address, escrowProvider.address, defaultFee, affFee, feeWallet, token.address, minTokens, term, maxTotalDiscount, feeDiscount
     );
 }
 
 //storage, feePolicy, discountPolicy, token, etherPriceProvider - are truffle objects, not addresses
 Utils.prototype.createPayment = 
-async function(storage, feePolicy, discountPolicy, token, etherPriceProvider, escrowTime) {
+async function(storage, escrowProvider, feePolicy, discountPolicy, token, etherPriceProvider) {
     let Payment = artifacts.require("ProductPayment");
     
-    let payment = await Payment.new(storage.address, feePolicy.address, discountPolicy.address, 
-                                    token.address, etherPriceProvider.address, escrowTime, {gas:3000000});
+    let payment = await Payment.new(storage.address, escrowProvider.address, feePolicy.address, discountPolicy.address, 
+                                    token.address, etherPriceProvider.address, {gas:4000000});
     
     await storage.setManager(payment.address, true);
     await discountPolicy.setManager(payment.address, true);
@@ -175,12 +237,32 @@ async function(token, amount) {
     return (await token.getRealTokenAmount.call(amount)).toNumber();
 }
 
+//designates roles to accounts, specified by array
+Utils.prototype.makeRoles = 
+function (accounts) {
+    return {
+        owner: accounts[0],
+        manager: accounts[1],
+        user1: accounts[2],
+        user2: accounts[3],
+        user3: accounts[4],
+        escrow: accounts[5],
+        affiliate: accounts[6],
+        provider: accounts[7],
+        vendor: accounts[8],
+        bancorOwner: accounts[9]
+    };
+}
 
+Utils.prototype.gasUsedDeploy = 
+function(contract) {
+    return this._web3.eth.getTransactionReceipt(contract.transactionHash).gasUsed;
+}
 
-//
-// DiscountPolicy 
-//
-
+Utils.prototype.gasUsedTx = 
+function(tx) {
+    return tx.receipt.gasUsed;
+}
 
 
 
@@ -291,7 +373,9 @@ async function(owner, bcsOwner, token, payment, artifacts) {
         bcsConverter: bcsConverter,
         bntConverter: bntConverter,
         quickConverter : quickConverter,
-        relayToken: relayToken
+        relayToken: relayToken,
+        extensions: converterExtensions,
+        gasPriceLimit: gasPriceLimit
     };
 }
 
