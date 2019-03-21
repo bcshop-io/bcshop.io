@@ -6,6 +6,8 @@ contract IEscrow {
     //
     // Methods
 
+    function defaultEscrow() public pure returns (address) {}
+
     /**@dev returns product's escrow currently used */
     function getProductEscrow(uint256) public view returns (address);
     /**@dev returns product's escrow fee */

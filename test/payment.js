@@ -11,6 +11,7 @@ let feePolicy;
 let etherPriceProvider;
 let payment;
 let discountPolicy;
+let revokedStorage;
 let etherFund;
 let pool;
 let token;
@@ -32,6 +33,7 @@ let DiscountPermille = 800;
 let MinPoolForDiscount = OneEther / 1000;
 let DiscountsInPool = 10;
 let MaxDiscount = 50; //=5%
+let ResolveTime = 886400;
 const E18 = 1000000000000000000;
 const LevelTokens = [E18, 2*E18, 3*E18]; 
 const LevelPcts = [100, 200, 300];
@@ -40,6 +42,7 @@ const LevelPcts = [100, 200, 300];
 let MinTokensForFeeDiscount = 10000000000000000000; //10 bcs
 let FeePermille = 100;
 let EscrowFeePermille = 50;
+let EscrowBaseFeePermille = 20;
 let AffiliateFeePermille = 300;
 let FeeDiscountTerm = 86400; //1 day
 let MaxTotalDiscountPerToken = utils.toWei(0.1);
@@ -70,15 +73,15 @@ async function prepare(accounts) {
     storage = await utils.createProductStorage();
     affStorage = await utils.createAffiliateStorage();
     escrowStorage = await utils.createEscrowStorage(owner, EscrowFeePermille);
-    escrowProvider = await utils.createEscrowProvider(escrowStorage, owner, escrowTime, EscrowFeePermille);
-
+    escrowProvider = await utils.createEscrowProvider(escrowStorage, owner, escrowTime, EscrowFeePermille, ResolveTime);
+    revokedStorage = await utils.createRevokedStorage();
     factory = await utils.createProductFactory(storage, affStorage, escrowStorage);
     etherPriceProvider = await utils.createEtherPriceProvider(WeisForCent); //1 eth = 1000$    
     feePolicy = await utils.createFeePolicy(
-        storage, affStorage, escrowProvider, FeePermille, AffiliateFeePermille, etherFund.address, token,
-        MinTokensForFeeDiscount, FeeDiscountTerm, MaxTotalDiscountPerToken, FeeDiscountPermille
+        storage, affStorage, escrowProvider, FeePermille, AffiliateFeePermille, EscrowBaseFeePermille,
+        etherFund.address, token, MinTokensForFeeDiscount, FeeDiscountTerm, MaxTotalDiscountPerToken, FeeDiscountPermille
     );
-    payment = await utils.createPayment(storage, escrowProvider, feePolicy, discountPolicy, token, etherPriceProvider);
+    payment = await utils.createPayment(storage, escrowProvider, feePolicy, discountPolicy, revokedStorage, token, etherPriceProvider);
 }
 
 async function createProduct(options = {}) {
@@ -86,21 +89,10 @@ async function createProduct(options = {}) {
     options.maxUnits = utils.or(options.maxUnits, 0);
 
     await utils.createProduct(factory, users, options);
-    //  factory.createSimpleProduct(
-    //     utils.or(options.price, Price1),
-    //     utils.or(options.maxUnits, 0),
-    //     utils.or(options.isActive, true),
-    //     utils.or(options.startTime, 0),
-    //     utils.or(options.endTime, 0),
-    //     utils.or(options.useEscrow, false),
-    //     utils.or(options.useFiatPrice, false),
-    //     utils.or(options.name, "Name"),
-    //     utils.or(options.data, "Email"),
-    //     {from:vendor});
 }
 
-async function checkStatus(status) {
-    assert.equal((await storage.getPurchase(0, 0)).toNumber(), status, "Invalid status");
+async function checkStatus(status, productId=0, purchaseId=0) {
+    assert.equal((await storage.getPurchase(productId, purchaseId)).toNumber(), status, "Invalid status");
 }
 
 async function buy(options) {
@@ -124,36 +116,47 @@ async function checkEmptyPaymentContract() {
     );
 }
 
+async function addEscrow(escrowUser = escrow, escrowFee = EscrowFeePermille) {
+    await escrowStorage.addEscrow(escrowUser, escrowFee);
+}
+
 contract("ProductPayment. Set parameters", function(accounts) {    
     before(async function() {
         await prepare(accounts);
     });
 
-    it("check parameters after creation", async function() {        
+    it("check parameters after creation", async function() {         
         assert.isTrue(await payment.activeState.call(), "Should be active");
         assert.equal(storage.address, await payment.productStorage.call(), "Invalid storage");
         assert.equal(escrowProvider.address, await payment.escrowProvider.call(), "Invalid escrow provider");
         assert.equal(feePolicy.address, await payment.feePolicy.call(), "Invalid fee policy");
         assert.equal(discountPolicy.address, await payment.discountPolicy.call(), "Invalid discount policy");
+        assert.equal(revokedStorage.address, await payment.revokedStorage.call(), "Invalid revokedStorage");
         assert.equal(token.address, await payment.token.call(), "Invalid token");
         assert.equal(etherPriceProvider.address, await payment.etherPriceProvider.call(), "Invalid ether price provider");        
     });
 
     it("can't call setParams as not owner", async function() {
         await utils.expectContractException(async function() {
-            await payment.setParams(accounts[0], accounts[5], accounts[1], accounts[2], accounts[3], accounts[4], {from:user1});
+            await payment.setParams(
+                accounts[0], accounts[5], accounts[1], accounts[2], accounts[3], accounts[4], accounts[6], 
+                {from:user1}
+            );
         });
     })
 
     it("check parameters after setParams", async function() {
-        await payment.setParams(accounts[0], accounts[5], accounts[1], accounts[2], accounts[3], accounts[4]);
+        await payment.setParams(
+            accounts[0], accounts[5], accounts[1], accounts[2], accounts[3], accounts[4], accounts[6]
+        );
 
         assert.equal(accounts[0], await payment.productStorage.call(), "Invalid storage");
         assert.equal(accounts[5], await payment.escrowProvider.call(), "Invalid escrow provider");
         assert.equal(accounts[1], await payment.feePolicy.call(), "Invalid fee policy");
         assert.equal(accounts[2], await payment.discountPolicy.call(), "Invalid discount policy");
-        assert.equal(accounts[3], await payment.token.call(), "Invalid token");
-        assert.equal(accounts[4], await payment.etherPriceProvider.call(), "Invalid ether price provider");
+        assert.equal(accounts[3], await payment.revokedStorage.call(), "Invalid revokedStorage");
+        assert.equal(accounts[4], await payment.token.call(), "Invalid token");
+        assert.equal(accounts[6], await payment.etherPriceProvider.call(), "Invalid ether price provider");
     });
 });
 
@@ -189,7 +192,7 @@ contract("ProductPayment. buyWithEth", function(accounts) {
         await createProduct();
         await payment.setActive(false);
         await utils.expectContractException(async function() {
-            buyTx = await payment.buyWithEth(0, 1, "id", false, Price1, {from:user2, value:Price1});
+            await payment.buyWithEth(0, 1, "id", false, Price1, {from:user2, value:Price1});
         });
     });
 
@@ -203,7 +206,7 @@ contract("ProductPayment. buyWithEth", function(accounts) {
         assert.equal(await storage.getVendorWallet.call(vendor), vendor, "getVendorWallet should be equal to vendor address");
 
         let oldBalance = await utils.getBalance(vendor);
-        buyTx = await payment.buyWithEth(0, 1, "id", false, Price1, {from:user2, value:Price1});
+        await payment.buyWithEth(0, 1, "id", false, Price1, {from:user2, value:Price1});
         let newBalance = await utils.getBalance(vendor);
 
         assert.equal(
@@ -217,7 +220,7 @@ contract("ProductPayment. buyWithEth", function(accounts) {
         await token.transfer(user2, LevelTokens[0], {from:owner});
         await utils.sendEther(owner, pool.address, MinPoolForDiscount);
 
-        buyTx = await payment.buyWithEth(0, 1, "id", false, Price1, {from:user2, value:Price1});
+        let buyTx = await payment.buyWithEth(0, 1, "id", false, Price1, {from:user2, value:Price1});
 
         assert.equal(buyTx.logs[0].args.buyer, user2, "Invalid customer");
         assert.equal(buyTx.logs[0].args.vendor, vendor, "Invalid vendor");
@@ -412,7 +415,7 @@ contract("ProductPayment. Payment distribution. no escrow, no aff. default vendo
 contract("ProductPayment. Payment distribution. use escrow", function(accounts) {
     beforeEach(async function() {
         await prepare(accounts);
-        await escrowProvider.update(EscrowFeePermille, {from:escrow});
+        await addEscrow(escrow, EscrowFeePermille);
     });
 
     let tx;
@@ -431,7 +434,7 @@ contract("ProductPayment. Payment distribution. use escrow", function(accounts) 
         expectedPayment,
         expectedCustomerChange,
         expectedUnitsSold,
-        expectedBaseFee = utils.pm(expectedPayment, FeePermille),
+        expectedBaseFee = utils.pm(expectedPayment, FeePermille+EscrowBaseFeePermille),
         expectedEscrowFee = utils.pm(expectedPayment, EscrowFeePermille)
     ) {
         let oldVendorBalance = await utils.getBalance(vendor);
@@ -530,7 +533,7 @@ contract("ProductPayment. Payment distribution. use escrow", function(accounts) 
         await token.transfer(vendor, MinTokensForFeeDiscount);
         await createEscrowProduct();
 
-        let expectedFeePermille = utils.dpm(FeePermille, FeeDiscountPermille); //10% * 60% = 6%
+        let expectedFeePermille = utils.dpm(FeePermille+EscrowBaseFeePermille, FeeDiscountPermille); //10% * 60% = 6%
         let expectedEscorwFeePermille = utils.dpm(EscrowFeePermille, FeeDiscountPermille); //5% * 60% = 3%
         await checkBalancesAfterPurchase(
             1, 
@@ -565,7 +568,7 @@ contract("ProductPayment. Purchase statuses. no escrow", function(accounts) {
 contract("ProductPayment. Purchase statuses. use escrow", function(accounts) {
     beforeEach(async function() {
         await prepare(accounts);
-        await escrowProvider.update(EscrowFeePermille, {from:escrow});
+        await addEscrow();
         await createProduct({useEscrow:true, escrow:escrow, escrowTime: escrowTime});
         await payment.buyWithEth(0, 1, "", false, Price1, {from:user1, value:Price1});
     });
@@ -586,37 +589,45 @@ contract("ProductPayment. Purchase statuses. use escrow", function(accounts) {
         assert.equal(event.args.purchaseId, 0, "Invalid event parameter 4");
     });
 
-    it("status should be Canceled after escrow takes customer's side", async function() {
+    it("status should be Finished after escrow takes customer's side", async function() {
         await payment.complain(0, 0, {from:user1});
-        let tx = await payment.resolve(0, 0, true, {from:escrow});
-        await checkStatus(3);
+        let tx = await payment.resolve(0, 0, 100, {from:escrow});
+        await checkStatus(0);
 
         //check event emitted
         let event = tx.logs[0];        
         assert.equal(event.event, "DisputeResolved", "Invalid event name");
         assert.equal(event.args.escrow, escrow, "Invalid event argument 1");
-        assert.equal(event.args.purchaseCanceled, 1, "Invalid event argument 2");
+        assert.equal(event.args.refundPct, 100, "Invalid event argument 2");
         assert.equal(event.args.productId, 0, "Invalid event argument 3");
         assert.equal(event.args.purchaseId, 0, "Invalid event argument 4");
     });
 
     it("status should be Pending after escrow takes vendor's side", async function() {
         await payment.complain(0, 0, {from:user1});
-        let tx = await payment.resolve(0, 0, false, {from:escrow});
+        let tx = await payment.resolve(0, 0, 0, {from:escrow});
         await checkStatus(4);
 
         //check event emitted
         let event = tx.logs[0];        
         assert.equal(event.event, "DisputeResolved", "Invalid event name");
         assert.equal(event.args.escrow, escrow, "Invalid event argument 1");
-        assert.equal(event.args.purchaseCanceled, 0, "Invalid event argument 2");
+        assert.equal(event.args.refundPct, 0, "Invalid event argument 2");
         assert.equal(event.args.productId, 0, "Invalid event argument 3");
         assert.equal(event.args.purchaseId, 0, "Invalid event argument 4");
     });
 
     it("status should be Finished after escrow takes vendor's side and vendor gets money", async function() {
         await payment.complain(0, 0, {from:user1});
-        await payment.resolve(0, 0, false, {from:escrow});        
+        await payment.resolve(0, 0, 0, {from:escrow});        
+        await payment.withdrawPendingPayments([0], [0], {from:vendor});
+        await checkStatus(0);
+    });
+
+    it("status should be Finished after escrow shares profit and vendor withdraws", async function() {
+        await payment.complain(0, 0, {from:user1});
+        await payment.resolve(0, 0, 40, {from:escrow});        
+        await checkStatus(4);
         await payment.withdrawPendingPayments([0], [0], {from:vendor});
         await checkStatus(0);
     });
@@ -627,14 +638,7 @@ contract("ProductPayment. Purchase statuses. use escrow", function(accounts) {
     });
 
     it("status should be Finished if the time for complain expires and vendor gets money", async function() {
-        await time.timeTravelAndMine(escrowTime);
-        /*
-        console.log(await payment.canWithdrawPending.call(0, 0));
-        console.log(await storage.getProductOwner.call(0));
-        console.log(vendor);
-        console.log(await storage.getEscrowData.call(0, 0));        
-        console.log(await utils.getBalance(payment.address));
-        */
+        await time.timeTravelAndMine(escrowTime);        
         await payment.withdrawPendingPayments([0], [0], {from:vendor});
         await checkStatus(0);
     });
@@ -642,16 +646,10 @@ contract("ProductPayment. Purchase statuses. use escrow", function(accounts) {
     it("can resolve complain even after complain time expires", async function() {
         await payment.complain(0, 0, {from:user1});
         await time.timeTravelAndMine(escrowTime*2);
-        await payment.resolve(0, 0, false, {from:escrow});
+        await payment.resolve(0, 0, 50, {from:escrow});
+        await checkStatus(4);
         await payment.withdrawPendingPayments([0], [0], {from:vendor});
         await checkStatus(0);
-    });
-
-    it("can cancel complained payment even after complain time expires", async function() {
-        await payment.complain(0, 0, {from:user1});
-        await time.timeTravelAndMine(escrowTime*2);
-        await payment.resolve(0, 0, true, {from:escrow});
-        await checkStatus(3);
     });
 });
 
@@ -661,7 +659,8 @@ contract("ProductPayment. Escrow use cases", function(accounts) {
     beforeEach(async function() {
         await prepare(accounts);
         await storage.setVendorInfo(vendor, vendorWallet, 0);
-        await escrowProvider.update(EscrowFeePermille, {from:escrow});
+        await addEscrow();
+        await addEscrow(user2);
         await createProduct({useEscrow:true, escrow:escrow, escrowTime:escrowTime});
         buyTx = await payment.buyWithEth(0, 1, "", false, Price1, {from:user1, value:Price1, gasPrice:gasPrice});
     });
@@ -669,8 +668,8 @@ contract("ProductPayment. Escrow use cases", function(accounts) {
     it("verifies escrow data in storage, purchase event after payment", async function() {
         let data = await storage.getEscrowData.call(0,0);
         assert.equal(data[0], user1, "Invalid customer");
-        assert.equal(data[1].toNumber(), utils.pm(Price1, FeePermille), "Invalid fee");
-        assert.equal(data[2].toNumber(), utils.dpm(Price1, FeePermille + EscrowFeePermille), "Invalid profit");
+        assert.equal(data[1].toNumber(), utils.pm(Price1, FeePermille+EscrowBaseFeePermille), "Invalid fee");
+        assert.equal(data[2].toNumber(), utils.dpm(Price1, FeePermille + EscrowFeePermille+EscrowBaseFeePermille), "Invalid profit");
         assert.equal(data[3], time.currentTime(), "invalid time");
 
         assert.equal(buyTx.logs[0].args.buyer, user1, "Invalid customer");
@@ -695,7 +694,6 @@ contract("ProductPayment. Escrow use cases", function(accounts) {
         );
     });
 
-
     it("try withdraw payment before complain time expires, should fail", async function() {
         await time.timeTravelAndMine(escrowTime/2);
         assert.isFalse(await payment.canWithdrawPending.call(0,0), "should be false");
@@ -712,7 +710,7 @@ contract("ProductPayment. Escrow use cases", function(accounts) {
 
     it("withdraw payment after dispute is won", async function() {
         await payment.complain(0, 0, {from:user1});
-        await payment.resolve(0, 0, false, {from:escrow});
+        await payment.resolve(0, 0, 0, {from:escrow});
         assert.isTrue(await payment.canWithdrawPending.call(0,0), "should be true");
 
         let oldVendorBalance = await utils.getBalance(vendorWallet);
@@ -731,7 +729,7 @@ contract("ProductPayment. Escrow use cases", function(accounts) {
 
     it("try withdraw payment after dispute is lost, should fail", async function() {
         await payment.complain(0, 0, {from:user1});
-        await payment.resolve(0, 0, true, {from:escrow});
+        await payment.resolve(0, 0, 100, {from:escrow});
         assert.isFalse(await payment.canWithdrawPending.call(0,0), "should be false");
 
         await utils.expectContractException(async function() {
@@ -776,7 +774,7 @@ contract("ProductPayment. Escrow use cases", function(accounts) {
         await payment.complain(0, 0, {from:user1}); 
         await payment.setActive(false);
         await utils.expectContractException(async function() {
-            await payment.resolve(0, 0, true, {from:escrow});
+            await payment.resolve(0, 0, 0, {from:escrow});
         });
     });
 
@@ -791,7 +789,7 @@ contract("ProductPayment. Escrow use cases", function(accounts) {
         await payment.complain(0, 0, {from:user1});
 
         let oldCustomerBalance = await utils.getBalance(user1);
-        await payment.resolve(0, 0, true, {from:escrow});
+        await payment.resolve(0, 0, 100, {from:escrow});
         let customerBalance = await utils.getBalance(user1);
 
         assert.equal(
@@ -811,14 +809,14 @@ contract("ProductPayment. Escrow use cases", function(accounts) {
         await time.timeTravelAndMine(escrowTime/2);
         await payment.complain(0, 0, {from:user1});
         await utils.expectContractException(async function() {
-            await payment.resolve(0, 0, true, {from:user2});
+            await payment.resolve(0, 0, 0, {from:user2});
         });
     });
 
     it("can't complain after dispute is lost", async function() {
         await time.timeTravelAndMine(escrowTime/2);
         await payment.complain(0, 0, {from:user1});
-        await payment.resolve(0, 0, false, {from:escrow});
+        await payment.resolve(0, 0, 100, {from:escrow});
 
         await utils.expectContractException(async function() {
             await payment.complain(0, 0, {from:user1});
@@ -828,7 +826,7 @@ contract("ProductPayment. Escrow use cases", function(accounts) {
     it("can't complain after dispute is lost and payment is withdrawn", async function() {
         await time.timeTravelAndMine(escrowTime/2);
         await payment.complain(0, 0, {from:user1});
-        await payment.resolve(0, 0, false, {from:escrow});
+        await payment.resolve(0, 0, 0, {from:escrow});
         await payment.withdrawPendingPayments([0],[0],{from:vendor});
 
         await utils.expectContractException(async function() {
@@ -839,7 +837,7 @@ contract("ProductPayment. Escrow use cases", function(accounts) {
     it("can't complain after dispute is won", async function() {
         await time.timeTravelAndMine(escrowTime/2);
         await payment.complain(0, 0, {from:user1});
-        await payment.resolve(0, 0, false, {from:escrow});
+        await payment.resolve(0, 0, 0, {from:escrow});
 
         await utils.expectContractException(async function() {
             await payment.complain(0, 0, {from:user1});
@@ -867,51 +865,138 @@ contract("ProductPayment. Escrow use cases", function(accounts) {
     it("can't resolve purchase with invalid id", async function() {
         await payment.complain(0, 0, {from:user1});
         await utils.expectContractException(async function() {
-            await payment.resolve(0, 2, true, {from:escrow});
+            await payment.resolve(0, 2, 100, {from:escrow});
         });
     });
 
     it("can't resolve purchase with invalid product id", async function() {
         await payment.complain(0, 0, {from:user1});
         await utils.expectContractException(async function() {
-            await payment.resolve(0, 2, true, {from:escrow});
+            await payment.resolve(0, 2, 100, {from:escrow});
         });
     });
 
     it("can't resolve purchase if there was no complain", async function() {
         await utils.expectContractException(async function() {
-            await payment.resolve(0, 0, true, {from:escrow});
+            await payment.resolve(0, 0, 0, {from:escrow});
         });
     });
 
     it("can't resolve purchase if it is resolved", async function() {
         await payment.complain(0, 0, {from:user1});
-        await payment.resolve(0, 0, true, {from:escrow});
+        await payment.resolve(0, 0, 50, {from:escrow});
 
         await utils.expectContractException(async function() {
-            await payment.resolve(0, 0, true, {from:escrow});
+            await payment.resolve(0, 0, 100, {from:escrow});
         });
     });    
+
+    it("default escrow can resolve disputes for others", async function() {
+        await payment.complain(0, 0, {from:user1});
+        await payment.resolve(0, 0, 50, {from:owner});
+        await checkStatus(4);
+    });
 
     it("disable escrow, default escrow can resolve disputes now", async function() {
         await payment.complain(0, 0, {from:user1});
         await escrowStorage.editEscrow(escrow, false, EscrowFeePermille);        
-        await payment.resolve(0, 0, true, {from:owner});
-        await checkStatus(3);        
+        await payment.resolve(0, 0, 50, {from:owner});
+        await checkStatus(4);        
     });
 
     it("disable escrow, they cant resolve dispute anymore", async function() {
         await payment.complain(0, 0, {from:user1});
         await escrowStorage.editEscrow(escrow, false, EscrowFeePermille);        
         await utils.expectContractException(async function() {
-            await payment.resolve(0, 0, true, {from:escrow});
+            await payment.resolve(0, 0, 100, {from:escrow});
         });        
     });
 
     it("can't resovle dispute for product assigined to another escrow", async function() {
         await payment.complain(0, 0, {from:user1});
         await utils.expectContractException(async function() {
-            await payment.resolve(0, 0, true, {from:owner});
+            await payment.resolve(0, 0, 100, {from:user2});
+        });
+    });
+});
+
+contract("ProductPayment. Escrow. Resolve with sharing", function(accounts) {
+
+    async function resolve(refundPct, escrowUser = escrow) {
+        return await payment.resolve(0, 0, refundPct, {from:escrow});
+    }
+
+    function checkPaymentDistribution(refundPct) {
+        it(`check payment distribution. refund=${refundPct}%`, async function() {
+            let dataBefore = await storage.getEscrowData(0, 0);
+            //console.log(dataBefore);
+            await resolve(refundPct);
+            let dataAfter = await storage.getEscrowData(0, 0);
+            //console.log(dataAfter);
+            let profitShare = 1.0 - refundPct/100.0; 
+            assert.equal(dataBefore[1].mul(profitShare).toNumber(), dataAfter[1].toNumber(), "Invalid fee remained");
+            assert.equal(dataBefore[2].mul(profitShare).toNumber(), dataAfter[2].toNumber(), "Invalid profit remained");
+        });
+    }
+
+    beforeEach(async function() {
+        await prepare(accounts);
+        await addEscrow();
+        await createProduct({useEscrow:true, escrow:escrow, escrowTime:escrowTime});
+        await payment.buyWithEth(0, 1, "", false, Price1, {from:user1, value:Price1, gasPrice:gasPrice}); 
+        await payment.complain(0,0,{from:user1});
+    });    
+    
+    checkPaymentDistribution(0);
+    checkPaymentDistribution(40);
+    checkPaymentDistribution(75);
+    checkPaymentDistribution(100);
+
+    it("can't resolve with refund > 100%", async function() {
+        await utils.expectContractException(async function() {
+            await resolve(120);
+        });
+    });
+
+    it("check balances after resolve and withdraw. refund=40%", async function() {
+        let data = await storage.getEscrowData(0, 0);
+        let refundPct = 40;
+        
+        let feeOldBalance = await utils.getBalance(etherFund.address);
+        let customerOldBalance = await utils.getBalance(user1);
+        let vendorOldBalance = await utils.getBalance(vendor);
+
+        await resolve(refundPct);
+
+        let customerNewBalance = await utils.getBalance(user1);
+        
+        let tx = await payment.withdrawPendingPayments([0], [0], {from:vendor, gasPrice: gasPrice});
+        let vendorNewBalance = await utils.getBalance(vendor);
+        let feeNewBalance = await utils.getBalance(etherFund.address);
+
+        assert.equal(
+            feeNewBalance.minus(feeOldBalance).toNumber(),
+            data[1].mul(1.0-refundPct/100.0).toNumber(),
+            "Invalid fee received"  
+        );
+
+        assert.equal(
+            customerNewBalance.minus(customerOldBalance).toNumber(), 
+            data[2].plus(data[1]).mul(refundPct/100.0).toNumber(),
+            "Invalid refund received"
+        );
+
+        assert.equal(
+            vendorNewBalance.minus(vendorOldBalance).toNumber(), 
+            data[2].mul(1.0-refundPct/100.0).minus(gasPrice*tx.receipt.gasUsed).toNumber(),
+            "Invalid profit received"
+        );        
+    });
+    
+    it("can't withdraw if refund was 100%", async function() {
+        await resolve(100);
+        await utils.expectContractException(async function() {
+            await payment.withdrawPendingPayments([0], [0], {from:vendor, gasPrice: gasPrice});
         });
     });
 });
@@ -919,9 +1004,9 @@ contract("ProductPayment. Escrow use cases", function(accounts) {
 contract("ProductPayment. Escrow. Confirm deliver", function(accounts) {
     beforeEach(async function() {
         await prepare(accounts);
-        await escrowProvider.update(EscrowFeePermille, {from:escrow});
+        await addEscrow();
         await createProduct({useEscrow:true, escrow:escrow, escrowTime:escrowTime});
-        buyTx = await payment.buyWithEth(0, 1, "", false, Price1, {from:user1, value:Price1, gasPrice:gasPrice}); 
+        await payment.buyWithEth(0, 1, "", false, Price1, {from:user1, value:Price1, gasPrice:gasPrice}); 
     });
 
     it("verify data after confirmDeliver call", async function() {
@@ -969,39 +1054,73 @@ contract("ProducPayment. Escrow. Revoke deal", function(accounts) {
     users = utils.makeRoles(accounts);
 
     async function revoke(caller = vendor) {
-        return await payment.revoke(0, 0, {from:caller});
+        let fee = await revokedStorage.escrowFee.call(0, 1);
+        return await payment.revoke(0, 1, {from:caller, value: fee, gasPrice: gasPrice});
     }
 
     beforeEach(async function() {
         await prepare(accounts);
-        await escrowProvider.update(EscrowFeePermille, {from:escrow});
+        await addEscrow();
         await createProduct({useEscrow:true, escrow:escrow, escrowTime:escrowTime});
+        buyTx = await payment.buyWithEth(0, 1, "", false, Price1, {from:user1, value:Price1, gasPrice:gasPrice});         
         buyTx = await payment.buyWithEth(0, 1, "", false, Price1, {from:user1, value:Price1, gasPrice:gasPrice}); 
     });
 
     it("verify data after revoke", async function() {
-        let oldBalance = await utils.getBalance(user1);
-        let tx = await revoke();
-        await checkStatus(5);
+        let feePaid = (await revokedStorage.escrowFee.call(0, 1)).toNumber();
 
+        let oldVendorBalance = await utils.getBalance(vendor);
+        let oldBalance = await utils.getBalance(user1);     
+        let oldContractBalance = await utils.getBalance(payment.address);   
+        let tx = await revoke();
+        await checkStatus(0, 0, 1);
+        let newContractBalance = await utils.getBalance(payment.address);
         let newBalance = await utils.getBalance(user1);
-        //customer should receive refund (minus escrowFee)
+        let newVendorBalance = await utils.getBalance(vendor);
+
+        //customer should receive refund (included escrowFee)
         assert.equal(
-            oldBalance.plus(utils.dpm(Price1, EscrowFeePermille)).toNumber(),
+            oldBalance.plus(Price1).toNumber(),    
             newBalance.toNumber(),
             "Invalid refund amount"
         );
+
+        //payment contract should have less ether (Price-escrowFee)
+        assert.equal(
+            newContractBalance.plus(Price1 - feePaid).toNumber(),    
+            oldContractBalance.toNumber(),
+            "Invalid contract balance"
+        );
+
+        //vendor should have less ether (gasUsed+escrowFee)
+        assert.equal(
+            newVendorBalance.plus(feePaid + gasPrice * utils.gasUsedTx(tx)).toNumber(),
+            oldVendorBalance.toNumber(),
+            "Invalid vendor balance"
+        )
 
         //check event emitted
         let event = tx.logs[0];        
         assert.equal(event.event, "PurchaseRevoked", "Invalid event name");
         assert.equal(event.args.vendor, vendor, "Invalid event argument 1");
         assert.equal(event.args.productId, 0, "Invalid event argument 2");
-        assert.equal(event.args.purchaseId, 0, "Invalid event argument 3");
+        assert.equal(event.args.purchaseId, 1, "Invalid event argument 3");
     });
 
+    it("verify escrow fee saved to storage", async function() {
+        let [baseFee, escrowFee, discount] = await feePolicy.getFeeDetails.call(vendor, 0, Price1);
+        await payment.buyWithEth(0, 1, "", false, Price1, {from:user1, value:Price1, gasPrice:gasPrice}); 
+
+        assert.equal(
+            (await revokedStorage.escrowFee.call(0, 2)).toNumber(),
+            escrowFee.toNumber(),
+            "Invalid fee saved"
+        );
+    });
+
+
     it("cant revoke if status is not Paid", async function() {
-        await payment.complain(0, 0, {from:user1});
+        await payment.complain(0, 1, {from:user1});
         await utils.expectContractException(async function() {
             await revoke();
         });
@@ -1026,13 +1145,26 @@ contract("ProducPayment. Escrow. Revoke deal", function(accounts) {
             await revoke(owner);            
         });
     });
+
+    it("can't revoke without fee provided", async function() {
+        await utils.expectContractException(async function() {
+            await payment.revoke(0, 1, {from:vendor});
+        });
+    });
+
+    it("can't revoke with too huge fee provided", async function() {
+        await utils.expectContractException(async function() {
+            let fee = 2 * (await revokedStorage.escrowFee.call(0, 1)).toNumber();
+            await payment.revoke(0, 1, {from:vendor, value:fee});
+        });
+    });
 });
 
 contract("ProductPayment. withdraw multiple pendings", function(accounts) {
 
     beforeEach(async function() {
         await prepare(accounts);
-        await escrowProvider.update(EscrowFeePermille, {from:escrow});
+        await addEscrow();
         await createProduct({useEscrow:true, escrow:escrow, escrowTime:escrowTime});
 
         //buy several times
@@ -1049,7 +1181,7 @@ contract("ProductPayment. withdraw multiple pendings", function(accounts) {
     it("verify profit after withdrawal of multiple payments", async function() {
         let oldBalance = await utils.getBalance(vendor);
 
-        let expectedProfit = utils.dpm(6 * Price1, FeePermille + EscrowFeePermille);
+        let expectedProfit = utils.dpm(6 * Price1, FeePermille + EscrowFeePermille + EscrowBaseFeePermille);
         let tx = await payment.withdrawPendingPayments([0,0,0,0,0,0], [0,1,2,3,4,5], {from:vendor, gasPrice:gasPrice});
         let newBalance = await utils.getBalance(vendor);
 
@@ -1089,7 +1221,7 @@ contract("ProductPayment. withdraw multiple pendings", function(accounts) {
     it("can't withdraw if at least one payment canceled", async function() {
         await buy({customer:user1});
         await payment.complain(0,6,{from:user1});
-        await payment.resolve(0, 6, true, {from:escrow});
+        await payment.resolve(0, 6, 100, {from:escrow});
 
         await utils.expectContractException(async function() {
             await payment.withdrawPendingPayments([0, 0], [0, 6], {from:vendor});
@@ -1383,7 +1515,7 @@ contract("ProductPayment. Replace payment contract", function(accounts) {
 
     before(async function() {
         await prepare(accounts);
-        await escrowProvider.update(EscrowFeePermille, {from:escrow});
+        await addEscrow();
         await createProduct({useEscrow:true, escrow: escrow, escrowTime:escrowTime});
         await buy({});
 
@@ -1407,7 +1539,7 @@ contract("ProductPayment. Replace payment contract", function(accounts) {
     });
 
     it("create new payment contract and transfer ether to it", async function() {
-        newPayment = await utils.createPayment(storage, escrowProvider, feePolicy, discountPolicy, token, etherPriceProvider);
+        newPayment = await utils.createPayment(storage, escrowProvider, feePolicy, discountPolicy, revokedStorage, token, etherPriceProvider);
         //await newPayment.setManager(escrow, true);
 
         await utils.sendEther(escrow, newPayment.address, balance);
@@ -1424,7 +1556,7 @@ contract("ProductPayment. Replace payment contract", function(accounts) {
         let newVendorBalance = await utils.getBalance(vendor);
 
         assert.equal(
-            oldVendorBalance.plus(utils.dpm(Price1, FeePermille+EscrowFeePermille)).toNumber(),
+            oldVendorBalance.plus(utils.dpm(Price1, FeePermille+EscrowFeePermille+EscrowBaseFeePermille)).toNumber(),
             newVendorBalance.plus(tx.receipt.gasUsed*gasPrice).toNumber(),
             "Invalid amount received"
         );

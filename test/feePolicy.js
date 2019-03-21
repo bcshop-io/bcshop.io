@@ -12,6 +12,7 @@ let users;
 
 const DefaultFeePermille = 100;
 const EscrowFeePermille = 50;
+const EscrowBaseFeePermille = 50;
 const LegacyEscrowFeePermille = 30;
 const LegacyEscrowTimeSeconds = 86400;
 const AffiliateFeePermille = 300;
@@ -47,6 +48,7 @@ async function createFeePolicy(options = {}) {
         escrowProvider,
         utils.or(options.defaultFee, DefaultFeePermille),
         utils.or(options.affiliateFee, AffiliateFeePermille),
+        utils.or(options.escrowBaseFee, EscrowBaseFeePermille),
         utils.or(options.feeWallet, users.provider), 
         token,
         utils.or(options.minTokens, MinTokensForDiscount),
@@ -83,7 +85,8 @@ contract("FeePolicy. Creation", function(accounts){
         assert.equal(await feePolicy.affiliateStorage.call(), affStorage.address, "Invalid affiliate storage");
         assert.equal(await feePolicy.escrowProvider.call(), escrowProvider.address, "Invalid escrow provider");
         assert.equal(await feePolicy.defaultFee.call(), DefaultFeePermille, "Invalid default fee");
-        assert.equal(await feePolicy.affiliateFee.call(), AffiliateFeePermille, "Invalid escrow fee");
+        assert.equal(await feePolicy.affiliateFee.call(), AffiliateFeePermille, "Invalid affiliate fee");
+        assert.equal(await feePolicy.escrowBaseFee.call(), EscrowBaseFeePermille, "Invalid escrow base fee");
         assert.equal(await feePolicy.feeWallet.call(), users.provider, "Invalid fee wallet");
         assert.equal(await feePolicy.token.call(), token.address, "Invalid token");
         assert.equal(await feePolicy.minTokenForDiscount.call(), MinTokensForDiscount, "Invalid min tokens");
@@ -94,6 +97,7 @@ contract("FeePolicy. Creation", function(accounts){
 
     exceptionOnCreation("can't create feePolicy with default fee > 1000 pm", {defaultFee:1001});
     exceptionOnCreation("can't create feePolicy with affiliate fee > 1000 pm", {affiliateFee:1001});
+    exceptionOnCreation("can't create feePolicy with escrow base fee > 1000 pm", {escrowBaseFee:1001});
     exceptionOnCreation("can't create feePolicy with fee discount > 1000 pm", {feeDiscount:1001}); 
     exceptionOnCreation("can't create feePolicy with term duration = 0", {term:0});     
 });
@@ -103,6 +107,7 @@ async function setFeePolicyParams(options = {}) {
     await feePolicy.setParams(
         utils.or(options.defaultFee, DefaultFeePermille),
         utils.or(options.affiliateFee, AffiliateFeePermille), 
+        utils.or(options.escrowBaseFee, EscrowBaseFeePermille), 
         utils.or(options.feeWallet, users.provider), 
         utils.or(options.token, token.address),
         utils.or(options.minTokens, MinTokensForDiscount),
@@ -132,6 +137,7 @@ contract("FeePolicy. Access and restrictions", function(accounts) {
         await setFeePolicyParams({
             defaultFee:115,
             affiliateFee:256,
+            escrowBaseFee:333,
             feeWallet:users.user2,             
             token: newToken.address,
             minTokens:987,
@@ -143,6 +149,7 @@ contract("FeePolicy. Access and restrictions", function(accounts) {
         assert.equal(await feePolicy.productStorage.call(), storage.address, "Invalid storage");
         assert.equal(await feePolicy.defaultFee.call(), 115, "Invalid default fee");
         assert.equal(await feePolicy.affiliateFee.call(), 256, "Invalid affiliate fee"); 
+        assert.equal(await feePolicy.escrowBaseFee.call(), 333, "Invalid escrow base fee"); 
         assert.equal(await feePolicy.feeWallet.call(), users.user2, "Invalid fee wallet");
         assert.equal(await feePolicy.token.call(), newToken.address, "Invalid token");
         assert.equal(await feePolicy.minTokenForDiscount.call(), 987, "Invalid min tokens");
@@ -153,6 +160,7 @@ contract("FeePolicy. Access and restrictions", function(accounts) {
     exceptionOnSetParams("can't setParams with default fee > 1000 pm", {defaultFee:1001});    
     exceptionOnSetParams("can't setParams with affiliateFee fee > 1000 pm", {affiliateFee:1001});
     exceptionOnSetParams("can't setParams with fee discount > 1000 pm", {feeDiscount:1001}); 
+    exceptionOnSetParams("can't setParams with escrow base fee discount > 1000 pm", {escrowBaseFee:1001}); 
     exceptionOnSetParams("can't setParams if not owner", {from:users.manager});    
 });
 
@@ -211,13 +219,13 @@ contract("FeePolicy. getFeeDetails", function(accounts) {
 
     it("No discount, default fee + escrow", async function() {
         await createProduct({useEscrow:true, escrow:users.escrow});        
-        await checkFeeDetails(0.1, 0.05, 0, 1);
+        await checkFeeDetails(0.15, 0.05, 0, 1);
     });
 
     it("changing the escrow fee doesn't affect already created products", async function() {
         await createProduct({useEscrow:true, escrow:users.escrow});
         await escrowProvider.update(900, {from:users.escrow});
-        await checkFeeDetails(0.1, 0.05, 0, 1);
+        await checkFeeDetails(0.15, 0.05, 0, 1);
     });
 
     it("No tokens, no discount, custom fee applies", async function() {
@@ -242,9 +250,16 @@ contract("FeePolicy. getFeeDetails", function(accounts) {
     });
 
     it("Enough tokens, discount + default fee + escrow", async function() {
-        await token.transfer(users.user1, MinTokensForDiscount);
+        await token.transfer(users.user1, 3 * MinTokensForDiscount);
         await createProduct({useEscrow:true, escrow:users.escrow}); 
-        await checkFeeDetails(0.04, 0.02, 0.09, 1);
+        //platform fee is 0.15 = 0.1+0.05 (escrow base)
+        //discount for platform fee = 0.6*0.15 = 0,09
+        //escrow fee = 0.05
+        //discount for escrow fee = 0.6*0.05=0,03
+        //resulting platform fee = 0.15-0.09=0.06
+        //resulting escrow fee = 0.05-0.03=0.02
+        //total discount = 0.09+0.03=0.12 
+        await checkFeeDetails(0.06, 0.02, 0.12, 1);
     });
 
     it("Enough tokens, discount + custom fee applies", async function() {
@@ -260,15 +275,16 @@ contract("FeePolicy. getFeeDetails", function(accounts) {
     });
 
     it("Enough tokens, escrow, discount exceeds max for term. first apply to base fee", async function() {        
-        await token.transfer(users.user1, 7 * MinTokensForDiscount);
+        await token.transfer(users.user1, 10 * MinTokensForDiscount);
         await createProduct({useEscrow:true, escrow:users.escrow});
                 
-        //before fee discount: baseFee = 1, escrowFee = 0.5
-        //max discount = 0.7
-        //discount applies first to baseFee. it becomes 1 - 0.6*1 = 0.4
-        //remaining discount = 0.7-0.6 = 0.1
-        //discount applies to escrow fee. it becomes 0.5 - 0.1 = 0.4 too 
-        await checkFeeDetails(0.4, 0.4, 0.7, 1, utils.toWei(10));        
+        //before fee discount: baseFee = 1.5 (1 + 0.5 base escrow), escrowFee = 0.5
+        //max discount = 1
+        //discount applies first to baseFee. it becomes 1.5 - 0.6*1.5 = 0.6
+        //discount for baseFee = 0.9
+        //remaining discount = 1-0.9 = 0.1
+        //discount applies to escrow fee. it becomes 0.5 - 0.1 = 0.4  
+        await checkFeeDetails(0.6, 0.4, 1, 1, utils.toWei(10));        
     });
 
     it("Enough tokens, escrow, total discount for term is above 0 already, not enough for escrow discount", async function() {
@@ -282,10 +298,10 @@ contract("FeePolicy. getFeeDetails", function(accounts) {
         assert.equal((await feePolicy.getRemainingDiscount.call(users.user1)).toNumber(), utils.toWei(0.04), "!");
 
         //check payment of 1.5 eth for escrow product. 
-        //baseFee = 0.15, discount should be 0.09, but max is 0.04, so it is 0.04
-        //base fee after discount is 0.15-0.04=0.11
+        //baseFee = 0.225(1.5*0.15), discount should be 0.135, but max is 0.04, so it is 0.04
+        //base fee after discount is 0.225-0.04=0.185
         //escrow fee got no discount, it is 1.5*0.05=0.075    
-        await checkFeeDetails(0.11, 0.075, 0.04, 1, utils.toWei(1.5));
+        await checkFeeDetails(0.185, 0.075, 0.04, 1, utils.toWei(1.5));
     });
 });
 
@@ -376,7 +392,8 @@ contract("FeePolicy. calculateFeeAmount, periods", function(accounts) {
     });
 
     it("can't calculateFeeAmount if base fee + escrow fee > 1000", async function() {
-        await escrowProvider.update(999, {from:users.user3});
+        //await escrowProvider.update(999, {from:users.user3});
+        await escrowStorage.addEscrow(users.user3, 999);
         await createProduct({useEscrow:true, escrow:users.user3});
 
         let pid = (await storage.getTotalProducts.call()).toNumber() - 1;

@@ -13,7 +13,7 @@ contract Escrow is Manageable, UsePermille, Active {
     // Events
 
     event EscrowActivated(address indexed escrow, bool state);
-    event ParamsChanged(address defaultEscrow, uint256 legacyHoldTime, uint16 legacyEscrowFee);
+    event ParamsChanged(address defaultEscrow, uint256 legacyHoldTime, uint16 legacyEscrowFee, uint256 resolveTime);
 
 
     //
@@ -24,10 +24,11 @@ contract Escrow is Manageable, UsePermille, Active {
     //hold time in seconds applied to legacy products with no escrow records
     uint256 public legacyHoldTime;
     //fee [1-1000] applied to legacy products that with no escrow records
-    uint16 public legacyEscrowFee;    
-
+    uint16 public legacyEscrowFee;
     //escrow used by default (platform)
     address public defaultEscrow;
+    //maximum complain time in seconds to resolve the dispute
+    uint256 public resolveTime;
 
     //
     // Modifiers
@@ -41,12 +42,13 @@ contract Escrow is Manageable, UsePermille, Active {
         IEscrowStorage _escrowStorage,
         address _defaultEscrow,
         uint256 _legacyHoldTimeSeconds,
-        uint16 _legacyEscrowFee
+        uint16 _legacyEscrowFee,
+        uint256 _resolveTime
     ) 
         public 
     {
         escrowStorage = _escrowStorage;
-        setParams(_defaultEscrow, _legacyHoldTimeSeconds, _legacyEscrowFee);
+        setParams(_defaultEscrow, _legacyHoldTimeSeconds, _legacyEscrowFee, _resolveTime);
     }
 
 
@@ -116,30 +118,33 @@ contract Escrow is Manageable, UsePermille, Active {
         public 
         activeOnly 
     {
-        if(escrowStorage.isEscrow(msg.sender)) {
-            //if there is already such record in escrow storage, update it, but don't change the state
-            escrowStorage.editEscrow(
-                msg.sender, 
-                escrowStorage.isEscrowActive(msg.sender), 
-                feePermille
-            );
-        } else {
-            escrowStorage.addEscrow(msg.sender, feePermille);
-        }
+        require(escrowStorage.isEscrow(msg.sender)); 
+        
+        //if there is already such record in escrow storage, update it, but don't change the state
+        escrowStorage.editEscrow(
+            msg.sender, 
+            escrowStorage.isEscrowActive(msg.sender), 
+            feePermille
+        );
     }
 
 
-    /**@dev Stops being escrow if state is false, otherwise start being escrow again  */
-    function activate(bool state) public activeOnly {
-        escrowStorage.editEscrow(msg.sender, state, escrowStorage.getEscrowCurrentFee(msg.sender));
-        emit EscrowActivated(msg.sender, state);
+    /**@dev Stops being escrow */
+    function deactivate() public activeOnly {
+        escrowStorage.editEscrow(msg.sender, false, escrowStorage.getEscrowCurrentFee(msg.sender));
+        emit EscrowActivated(msg.sender, false);
     }
-
+    /** Activates/deactivates escrow */
+    function activate(address escrow, bool isActive) public managerOnly {
+        escrowStorage.editEscrow(escrow, isActive, escrowStorage.getEscrowCurrentFee(escrow));
+        emit EscrowActivated(escrow, isActive);
+    }
     
     function setParams(
         address _defaultEscrow,
         uint256 _legacyHoldTimeSeconds,
-        uint16 _legacyEscrowFee
+        uint16 _legacyEscrowFee,
+        uint256 _resolveTime
     )
         public
         managerOnly
@@ -150,7 +155,8 @@ contract Escrow is Manageable, UsePermille, Active {
         defaultEscrow = _defaultEscrow;
         legacyHoldTime = _legacyHoldTimeSeconds;
         legacyEscrowFee = _legacyEscrowFee;
+        resolveTime = _resolveTime;
 
-        emit ParamsChanged(_defaultEscrow, _legacyHoldTimeSeconds, _legacyEscrowFee);
+        emit ParamsChanged(_defaultEscrow, _legacyHoldTimeSeconds, _legacyEscrowFee, _resolveTime);
     }
 }

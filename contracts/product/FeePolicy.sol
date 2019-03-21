@@ -20,6 +20,7 @@ contract FeePolicy is UsePermille, Manageable {
     event ParamsChanged(
         uint16 defaultFee,
         uint16 affiliateFee,
+        uint16 escrowBaseFee,
         address feeWallet,
         address token,
         uint256 minTokenForDiscount,        
@@ -38,7 +39,7 @@ contract FeePolicy is UsePermille, Manageable {
 
     uint16 public defaultFee;               //default fee for genereal products (permille)
     uint16 public affiliateFee;             //affiliate fee if the vendor has one (permille)
-
+    uint16 public escrowBaseFee;            //fee for escrow usage that goes to platform (permille) 
     address public feeWallet;               //wallet of the platform 
     
     IERC20Token public token;               // token to check fee discount
@@ -60,6 +61,7 @@ contract FeePolicy is UsePermille, Manageable {
         IEscrow _escrowProvider,
         uint16 _defaultFeePermille, 
         uint16 _affiliateFeePermille,
+        uint16 _escrowBaseFeePermille,
         address _feeWallet,        
         IERC20Token _token,
         uint256 _minTokenForDiscount,
@@ -79,6 +81,7 @@ contract FeePolicy is UsePermille, Manageable {
         setParams(
             _defaultFeePermille,
             _affiliateFeePermille,
+            _escrowBaseFeePermille,
             _feeWallet,
             _token,
             _minTokenForDiscount,        
@@ -101,6 +104,7 @@ contract FeePolicy is UsePermille, Manageable {
         uint16 escrowFee = 0;
         if(productStorage.isEscrowUsed(productId)) {
             escrowFee = escrowProvider.getProductEscrowFee(productId);
+            baseFee = baseFee + escrowBaseFee;
         }
 
         uint16 fee = baseFee + escrowFee;
@@ -180,7 +184,6 @@ contract FeePolicy is UsePermille, Manageable {
 
         //calculate affiliate fee only if there is an address in the storage, other than vendor address itself
         if(affiliate != 0x0) {
-        //if(affiliateStorage.affiliateSet(vendor)) {            
             affiliateFeeAmount = platformFeeAmount.safePm(affiliateFee);
             platformFeeAmount = platformFeeAmount.safeSub(affiliateFeeAmount);
             
@@ -195,6 +198,7 @@ contract FeePolicy is UsePermille, Manageable {
     function setParams(
         uint16 _defaultFeePermille,
         uint16 _affiliateFeePermille,
+        uint16 _escrowBaseFeePermille,
         address _feeWallet,
         IERC20Token _token,
         uint256 _minTokenForDiscount,        
@@ -206,12 +210,13 @@ contract FeePolicy is UsePermille, Manageable {
         validPermille(_defaultFeePermille)
         validPermille(_affiliateFeePermille)
         validPermille(_discountPermille)
-
+        validPermille(_escrowBaseFeePermille)
     {
         //require(_defaultFeePermille  <= 1000);
 
         defaultFee = _defaultFeePermille;
         affiliateFee = _affiliateFeePermille;
+        escrowBaseFee = _escrowBaseFeePermille;
         feeWallet = _feeWallet;
         token = _token;
         minTokenForDiscount = _minTokenForDiscount;
@@ -220,8 +225,9 @@ contract FeePolicy is UsePermille, Manageable {
 
         denominator = uint256(10) ** token.decimals();
 
-        emit ParamsChanged(_defaultFeePermille, _affiliateFeePermille, _feeWallet, address(_token),
-                            _minTokenForDiscount, _maxDiscountPerToken, _discountPermille, denominator
+        emit ParamsChanged(_defaultFeePermille, _affiliateFeePermille, _escrowBaseFeePermille, 
+                            _feeWallet, address(_token), _minTokenForDiscount, _maxDiscountPerToken, 
+                            _discountPermille, denominator
         );
     }
 }

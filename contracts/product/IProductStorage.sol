@@ -11,9 +11,8 @@ contract IProductStorage {
         2-complain. there was a complain
         3-canceled. customer won the dispute and got eth back
         4-pending. vendor can withdraw his funds from escrow
-        5-revoked. vendor revoked escrow-protected purchase in Paid state. 
     */
-    enum PurchaseState {Finished, Paid, Complain, Canceled, Pending, Revoked}
+    enum PurchaseState {Finished, Paid, Complain, Canceled, Pending}
 
     //
     // Methods

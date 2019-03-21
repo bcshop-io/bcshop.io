@@ -12,6 +12,7 @@ import "./IPurchaseHandler.sol";
 import "./IDiscountPolicy.sol";
 import "./IBancorConverter.sol";
 import "./IEtherPriceProvider.sol";
+import "./IRevokedStorage.sol";
 
 /**@dev This contact accepts payments for products and transfers ether to all the parties */
 contract ProductPayment is EtherHolder, Active {
@@ -39,10 +40,11 @@ contract ProductPayment is EtherHolder, Active {
     //emitted in resolve function
     event DisputeResolved(
         address indexed escrow,
-        bool indexed purchaseCanceled,
         uint256 indexed productId,
-        uint256 purchaseId
+        uint256 indexed purchaseId,
+        uint8 refundPct
     );
+    
     //emitted in complain function
     event ComplainMade(
         address indexed vendor,
@@ -60,6 +62,7 @@ contract ProductPayment is EtherHolder, Active {
     IEscrow public escrowProvider;
     IFeePolicy public feePolicy;
     IDiscountPolicy public discountPolicy;
+    IRevokedStorage public revokedStorage;
     //contract that stores ether/usd exchange rate
     IEtherPriceProvider public etherPriceProvider;
     //token that can be used as payment tool
@@ -79,12 +82,13 @@ contract ProductPayment is EtherHolder, Active {
         IEscrow _escrowProvider, 
         IFeePolicy _feePolicy, 
         IDiscountPolicy _discountPolicy,
+        IRevokedStorage _revokedStorage,
         IERC20Token _token,
         IEtherPriceProvider _etherPriceProvider        
     ) 
     public 
     {
-        setParams(_productStorage, _escrowProvider, _feePolicy, _discountPolicy, _token, _etherPriceProvider);
+        setParams(_productStorage, _escrowProvider, _feePolicy, _discountPolicy, _revokedStorage, _token, _etherPriceProvider);
     }
     
     //allows to receive direct ether transfers
@@ -104,6 +108,7 @@ contract ProductPayment is EtherHolder, Active {
         IEscrow _escrowProvider,
         IFeePolicy _feePolicy, 
         IDiscountPolicy _discountPolicy,
+        IRevokedStorage _revokedStorage,
         IERC20Token _token,
         IEtherPriceProvider _etherPriceProvider
     ) 
@@ -114,6 +119,7 @@ contract ProductPayment is EtherHolder, Active {
         escrowProvider = _escrowProvider;
         feePolicy = _feePolicy;
         discountPolicy = _discountPolicy;
+        revokedStorage = _revokedStorage;
         token = _token;
         etherPriceProvider = _etherPriceProvider;
     }
@@ -138,8 +144,14 @@ contract ProductPayment is EtherHolder, Active {
     /**@dev Returns true if vendor profit can be withdrawn */
     function canWithdrawPending(uint256 productId, uint256 purchaseId) public view returns(bool) {
         IProductStorage.PurchaseState state = productStorage.getPurchase(productId, purchaseId);
-        return state == IProductStorage.PurchaseState.Pending 
-            || (state == IProductStorage.PurchaseState.Paid && esrowHoldTimeElapsed(productId, purchaseId));
+        (address customer, uint256 fee, uint256 profit, uint256 timestamp) = productStorage.getEscrowData(productId, purchaseId);
+
+        return state == IProductStorage.PurchaseState.Pending || 
+            (state == IProductStorage.PurchaseState.Paid && esrowHoldTimeElapsed(productId, purchaseId));
+
+        // return state == IProductStorage.PurchaseState.Pending 
+        //     || (state == IProductStorage.PurchaseState.Paid && esrowHoldTimeElapsed(productId, purchaseId));
+
     }
 
     /**@dev Returns true if escrow time elapsed */
@@ -231,9 +243,12 @@ contract ProductPayment is EtherHolder, Active {
     }
 
 
-    /**@dev Allows vendor to revoke purchase is it wasn't complained yet */
+    /**@dev Allows vendor to revoke purchase is it wasn't complained yet
+    * Ether in amount of escrow fee should be attached
+    */
     function revoke(uint256 productId, uint256 purchaseId) 
         public
+        payable
         activeOnly 
     {
         //check if its valid vendor
@@ -245,42 +260,59 @@ contract ProductPayment is EtherHolder, Active {
             && !esrowHoldTimeElapsed(productId, purchaseId)
         );
 
+        require(msg.value == revokedStorage.escrowFee(productId, purchaseId));
+
         //change state
-        productStorage.changePurchase(productId, purchaseId, IProductStorage.PurchaseState.Revoked);
+        productStorage.changePurchase(productId, purchaseId, IProductStorage.PurchaseState.Finished);
+        revokedStorage.setRevokedFlag(productId, purchaseId, true);
 
         //return payment to customer
         (address customer, uint256 fee, uint256 profit, uint256 timestamp) = 
             productStorage.getEscrowData(productId, purchaseId);
-        customer.transfer(fee.safeAdd(profit));
+        customer.transfer(fee.safeAdd(profit).safeAdd(msg.value));
 
         emit PurchaseRevoked(msg.sender, productId, purchaseId);
     }
 
 
     /**@dev Resolves a complain on specific purchase. 
-    If cancelPayment is true, payment returns to customer; otherwise - to the vendor */
-    function resolve(uint256 productId, uint256 purchaseId, bool cancelPayment) 
+    If cancelPayment is true, payment returns to customer; otherwise - to the vendor 
+    refundPct - a percentage of merchant's profit to be sent to customer */
+    function resolve(uint256 productId, uint256 purchaseId, uint8 refundPct) 
         public
         activeOnly
     {
-        //check escrow validity 
-        require(msg.sender == escrowProvider.getProductEscrow(productId));
+        require(refundPct >= 0 && refundPct <= 100);
+
+        //check escrow validity - product escrow or default escrow
+        require(
+            msg.sender == escrowProvider.getProductEscrow(productId) ||
+            msg.sender == escrowProvider.defaultEscrow()
+        );
         
-        //check purchase state
         require(productStorage.getPurchase(productId, purchaseId) == IProductStorage.PurchaseState.Complain);
         
         (address customer, uint256 fee, uint256 profit, uint256 timestamp) = productStorage.getEscrowData(productId, purchaseId);
         
-        if (cancelPayment) {
-            //change state first, then transfer to customer
-            productStorage.changePurchase(productId, purchaseId, IProductStorage.PurchaseState.Canceled);            
-            customer.transfer(fee.safeAdd(profit));
-        } else {
-            //change state. vendor should call withdrawPending and then fee will be sent to provider
-            productStorage.changePurchase(productId, purchaseId, IProductStorage.PurchaseState.Pending);
-        }
+        if(refundPct > 0) {
+            uint256 refundProfit = profit * refundPct / 100.0;
+            uint256 refundFee = fee * refundPct / 100.0;
 
-        emit DisputeResolved(msg.sender, cancelPayment, productId, purchaseId);
+            profit = profit.safeSub(refundProfit);
+            fee = fee.safeSub(refundFee);
+
+            productStorage.setEscrowData(productId, purchaseId, customer, fee, profit, timestamp);
+            customer.transfer(refundFee.safeAdd(refundProfit));            
+            
+        } 
+                
+        productStorage.changePurchase(
+            productId, 
+            purchaseId, 
+            refundPct < 100 ? IProductStorage.PurchaseState.Pending : IProductStorage.PurchaseState.Finished
+        );
+
+        emit DisputeResolved(msg.sender, productId, purchaseId, refundPct);
     }
 
 
@@ -384,6 +416,7 @@ contract ProductPayment is EtherHolder, Active {
 
             //send escrow fee anyway 
             escrowProvider.getProductEscrow(productId).transfer(escrowFee);
+            revokedStorage.saveEscrowFee(productId, purchaseId, escrowFee);
         } else {
             feePolicy.sendFee.value(baseFee)(owner);
             productStorage.getVendorWallet(owner).transfer(profit);

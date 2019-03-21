@@ -158,7 +158,6 @@ async function(factory, users, options = {}) {
         this.or(options.escrowTime, escrowTime),
         this.or(options.useFiatPrice, useFiatPrice),
         this.or(options.affiliate, "0x0"),
-        this.or(options.name, name),        
         this.or(options.data, data),
         {from:this.or(options.vendor, users.vendor)}
     );
@@ -171,6 +170,12 @@ async function() {
     return await AffiliateStorage.new();
 }
 
+Utils.prototype.createRevokedStorage = 
+async function() {
+    let RevokedStorage = artifacts.require("RevokedStorage");
+    return await RevokedStorage.new();
+}
+
 //creates escrowStorage contract
 Utils.prototype.createEscrowStorage = 
 async function(defaultEscrow, defaultEscrowFee=50) {
@@ -180,9 +185,9 @@ async function(defaultEscrow, defaultEscrowFee=50) {
 
 //creates escrowProvider contract. escrowStorage is truffle contract
 Utils.prototype.createEscrowProvider =
-async function(escrowStorage, defaultEscrow, legacyHoldTimeSeconds, legacyEscrowFee) {
+async function(escrowStorage, defaultEscrow, legacyHoldTimeSeconds, legacyEscrowFee, resolveTime) {
     let Escrow = artifacts.require("Escrow");
-    let escrow = await Escrow.new(escrowStorage.address, defaultEscrow, legacyHoldTimeSeconds, legacyEscrowFee);
+    let escrow = await Escrow.new(escrowStorage.address, defaultEscrow, legacyHoldTimeSeconds, legacyEscrowFee, resolveTime);
     await escrowStorage.setManager(escrow.address, true);
 
     return escrow;
@@ -192,22 +197,26 @@ async function(escrowStorage, defaultEscrow, legacyHoldTimeSeconds, legacyEscrow
 //token, storage, affStorage, escrowProvider are truffle contracts, not just addresses
 Utils.prototype.createFeePolicy = 
 async function(
-    storage, affStorage, escrowProvider, defaultFee, affFee, feeWallet, token, minTokens, term, maxTotalDiscount, feeDiscount
+    storage, affStorage, escrowProvider, defaultFee, affFee, escrowBaseFee,  
+    feeWallet, token, minTokens, term, maxTotalDiscount, feeDiscount
     ) {
     let FeePolicy = artifacts.require("FeePolicy");
     return await FeePolicy.new(
-        storage.address, affStorage.address, escrowProvider.address, defaultFee, affFee, feeWallet, token.address, minTokens, term, maxTotalDiscount, feeDiscount
+        storage.address, affStorage.address, escrowProvider.address, defaultFee, affFee,
+        escrowBaseFee, feeWallet, token.address, minTokens, term, maxTotalDiscount, feeDiscount
     );
 }
 
 //storage, feePolicy, discountPolicy, token, etherPriceProvider - are truffle objects, not addresses
 Utils.prototype.createPayment = 
-async function(storage, escrowProvider, feePolicy, discountPolicy, token, etherPriceProvider) {
+async function(storage, escrowProvider, feePolicy, discountPolicy, revokedStorage, token, etherPriceProvider) {
     let Payment = artifacts.require("ProductPayment");
     
-    let payment = await Payment.new(storage.address, escrowProvider.address, feePolicy.address, discountPolicy.address, 
-                                    token.address, etherPriceProvider.address, {gas:4000000});
+    let payment = await Payment.new(
+        storage.address, escrowProvider.address, feePolicy.address, discountPolicy.address, 
+        revokedStorage.address, token.address, etherPriceProvider.address, {gas:4000000});
     
+    await revokedStorage.setManager(payment.address, true);
     await storage.setManager(payment.address, true);
     await discountPolicy.setManager(payment.address, true);
     await feePolicy.setManager(payment.address, true);

@@ -7,20 +7,6 @@ import "./AffiliateStorage.sol";
 import "./IEscrowStorage.sol";
 
 contract ProductMaker is Active {
-    
-    event ProductEdited
-    (
-        uint256 indexed productId, 
-        uint256 price, 
-        bool useFiatPrice,
-        uint256 maxUnits,
-        bool isActive,
-        uint256 startTime, 
-        uint256 endTime, 
-        bool useEscrow,
-        string name,
-        string data
-    );
 
     //
     // Storage data
@@ -60,7 +46,6 @@ contract ProductMaker is Active {
         uint256 escrowHoldTimeSeconds,                     
         bool useFiatPrice,
         address affiliate,
-        string name,
         string data
     )   
         public
@@ -76,14 +61,6 @@ contract ProductMaker is Active {
             );
         }
 
-        //if there is no affiliate for this vendor, set it
-        // if(affiliateStorage.affiliates(msg.sender) == 0x0) {
-        //     //set affiliate to the vendor itself if parameter is not set
-        //     affiliateStorage.setAffiliate(
-        //         msg.sender, 
-        //         affiliate == 0x0 ? msg.sender : affiliate
-        //     );
-        // }  
         if(!affiliateStorage.affiliateSet(msg.sender)) {
             affiliateStorage.setAffiliate(msg.sender, affiliate);
         }
@@ -93,7 +70,7 @@ contract ProductMaker is Active {
         }
 
         productStorage.createProduct(
-            msg.sender, price, maxUnits, isActive, startTime, endTime, useEscrow, useFiatPrice, name, data
+            msg.sender, price, maxUnits, isActive, startTime, endTime, useEscrow, useFiatPrice, "", data
         );
     }
    
@@ -106,7 +83,6 @@ contract ProductMaker is Active {
         uint256 startTime, 
         uint256 endTime,
         bool useFiatPrice,
-        string name,
         string data
     ) 
         public
@@ -119,8 +95,7 @@ contract ProductMaker is Active {
         
         //can't change escrowUsage now
         bool useEscrow = productStorage.isEscrowUsed(productId);
-        productStorage.editProduct(productId, price, maxUnits, isActive, startTime, endTime, useEscrow, useFiatPrice, name, data);        
-        emit ProductEdited(productId, price, useFiatPrice, maxUnits, isActive, startTime, endTime, useEscrow, name, data);
+        productStorage.editProduct(productId, price, maxUnits, isActive, startTime, endTime, useEscrow, useFiatPrice, "", data);
     }
 
     /**@dev Changes vendor wallet for profit */

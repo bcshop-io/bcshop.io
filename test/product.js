@@ -373,7 +373,7 @@ contract("ProductMaker. ", function(accounts) {
         assert.equal(result[2], endTime, "Invalid end time");        
 
         result = await storage.getTextData.call(0);
-        assert.equal(result[0], name, "Invalid name");
+        assert.equal(result[0], "", "Invalid name");
         assert.equal(result[1], data, "Invalid data");
 
         assert.equal(users.escrow, await escrowStorage.getProductEscrow.call(0), "Invalid escrow");
@@ -383,7 +383,8 @@ contract("ProductMaker. ", function(accounts) {
     });
 
     it("verifies data after editSimpleProduct", async function() {
-        await factory.editSimpleProduct(0, 555, 32, false, 1, 2, true, "NEWNAME", "NEWDATA", {from:users.vendor});
+        //await factory.editSimpleProduct(0, 555, 32, false, 1, 2, true, "NEWNAME", "NEWDATA", {from:users.vendor});
+        await factory.editSimpleProduct(0, 555, 32, false, 1, 2, true, "NEWDATA", {from:users.vendor});
                 
         let result = await storage.getProductData.call(0);
         assert.equal(result[0], 555, "Invalid price");
@@ -398,7 +399,7 @@ contract("ProductMaker. ", function(accounts) {
         assert.equal(result[2], 2, "Invalid end time");        
                     
         result = await storage.getTextData.call(0);
-        assert.equal(result[0], "NEWNAME", "Invalid name");
+        assert.equal(result[0], "", "Invalid name");
         assert.equal(result[1], "NEWDATA", "Invalid data");
     });
 
@@ -419,21 +420,23 @@ contract("ProductMaker. ", function(accounts) {
     it("can't editSimpleProduct if endTime <= startTime", async function() {        
         await factory.setActive(true);
         await utils.expectContractException(async function() {
-            await factory.editSimpleProduct(0, 555, 32, false, 3, 1, true, "NEWNAME", "NEWDATA", {from:users.vendor});
+            //await factory.editSimpleProduct(0, 555, 32, false, 3, 1, true, "NEWNAME", "NEWDATA", {from:users.vendor});
+            await factory.editSimpleProduct(0, 555, 32, false, 3, 1, true, "NEWDATA", {from:users.vendor});
         });
     });
 
     it("can't call createSimpleProduct if contract is inactive", async function() {
         await factory.setActive(false);
         await utils.expectContractException(async function() {
-            await utils.createProduct(factory, users, );
+            await utils.createProduct(factory, users);
         });
     });
 
     it("can't call editSimpleProduct if contract is inactive", async function() {
         await factory.setActive(false);
         await utils.expectContractException(async function() {
-            await factory.editSimpleProduct(0, 555, 32, false, 1, 2, true, "NEWNAME", "NEWDATA", {from:users.vendor});
+            //await factory.editSimpleProduct(0, 555, 32, false, 1, 2, true, "NEWNAME", "NEWDATA", {from:users.vendor});
+            await factory.editSimpleProduct(0, 555, 32, false, 1, 2, true, "NEWDATA", {from:users.vendor});
         });
     });
 
@@ -447,7 +450,8 @@ contract("ProductMaker. ", function(accounts) {
     it("can't call editSimpleProduct as not product's owner", async function() {
         await factory.setActive(true);
         await utils.expectContractException(async function() {
-            await factory.editSimpleProduct(0, 555, 32, false, 1, 2, true, "NEWNAME", "NEWDATA", {from:users.owner});
+            // await factory.editSimpleProduct(0, 555, 32, false, 1, 2, true, "NEWNAME", "NEWDATA", {from:users.owner});
+            await factory.editSimpleProduct(0, 555, 32, false, 1, 2, true, "NEWDATA", {from:users.owner});
         });
     }); 
 });
@@ -570,18 +574,20 @@ contract("Measure gas usage", function(accounts) {
         tx = await utils.createProduct(factory, users);
         console.log("Gas used 2: " + tx.receipt.gasUsed);
                 
-        //320k/280k - assign "Address 1|Address 2|Phone" through parameter                
+        //211/166k - assign "Address 1|Address 2|Phone" through parameter                
     });
 
     it("factory.editSimpleProduct", async function() {
-        let tx = await utils.createProduct(factory, users, {vendor:users.owner});//factory.createSimpleProduct(price, maxUnits, active, startTime, endTime, useFiatPrice, name, data);
-        tx = await factory.editSimpleProduct(0, price/2, maxUnits+1, false, startTime + 10, endTime + 20, false, "XXXXX", "CCCC");        
+        let tx = await utils.createProduct(factory, users, {vendor:users.owner});
+        //tx = await factory.editSimpleProduct(0, price/2, maxUnits+1, false, startTime + 10, endTime + 20, false, "XXXXX", "CCCC");        
+        tx = await factory.editSimpleProduct(0, price/2, maxUnits+1, false, startTime + 10, endTime + 20, false, "CCCC");        
         console.log("Gas used 1: " + tx.receipt.gasUsed);
 
-        tx = await factory.editSimpleProduct(0, price, maxUnits, true, startTime + 20, endTime + 30, true, "AAAAA", "BBBB");        
+        //tx = await factory.editSimpleProduct(0, price, maxUnits, true, startTime + 20, endTime + 30, true, "AAAAA", "BBBB");        
+        tx = await factory.editSimpleProduct(0, price, maxUnits, true, startTime + 20, endTime + 30, true, "BBBB");
         console.log("Gas used 2: " + tx.receipt.gasUsed);
 
-        //84/114k
+        //101/118k
     });
 
     it("storage.createProduct x40", async function() {
